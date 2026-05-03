@@ -1,0 +1,52 @@
+<div class="chat-container">
+  <!-- Header -->
+  <div class="chat-header">
+    <div class="header-info">
+      <p-avatar icon="pi pi-sparkles" shape="circle" size="normal" [style]="{'background-color': '#f1f5f9', 'color': '#0f172a'}"></p-avatar>
+      <div>
+        <h2 class="title">צ'אט בוט</h2>
+        <p class="subtitle">תמיד כאן כדי לעזור</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div class="chat-messages">
+    @for (message of messages(); track message.id) {
+      <div class="message-wrapper" [class.user]="message.sender === 'user'">
+        <div class="message-bubble">
+          {{ message.text }}
+        </div>
+        <div class="message-time">
+          {{ message.timestamp | date:'shortTime' }}
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Input -->
+  <div class="chat-input-area">
+    <form (ngSubmit)="sendMessage()" class="input-form">
+      <textarea 
+        pInputTextarea
+        [autoResize]="true"
+        rows="1"
+        [ngModel]="inputText()" 
+        (ngModelChange)="inputText.set($event)" 
+        (keydown)="handleKeyPress($event)"
+        name="messageInput"
+        placeholder="הקלד את ההודעה שלך..." 
+        autocomplete="off"
+        class="message-input w-full"
+      ></textarea>
+      <p-button 
+        type="submit" 
+        icon="pi pi-send" 
+        size="large"
+        [disabled]="!inputText().trim()" 
+        [rounded]="true" 
+        severity="contrast"
+      ></p-button>
+    </form>
+  </div>
+</div>

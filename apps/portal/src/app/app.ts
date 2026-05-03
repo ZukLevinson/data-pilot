@@ -1,9 +1,8 @@
 import { Component, ChangeDetectionStrategy } from '@angular/core';
-import { RouterModule } from '@angular/router';
-import { ButtonModule } from 'primeng/button';
+import { ChatBotComponent } from './chat-bot/chat-bot.component';
 
 @Component({
-  imports: [RouterModule, ButtonModule],
+  imports: [ChatBotComponent],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.css',
