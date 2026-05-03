@@ -11,12 +11,10 @@
 This repository demonstrates a production-ready Angular monorepo with:
 
 - **2 Applications**
-
   - `shop` - Angular e-commerce application with product listings and detail views
   - `api` - Backend API with Docker support serving product data
 
 - **6 Libraries**
-
   - `@org/feature-products` - Product listing feature (Angular)
   - `@org/feature-product-detail` - Product detail feature (Angular)
   - `@org/data` - Data access layer for shop features
@@ -73,7 +71,7 @@ This repository showcases several powerful Nx features:
 Enforces architectural constraints using tags. Each project has specific dependencies it can use:
 
 - `scope:shared` - Can be used by all projects
-- `scope:shop` - Shop-specific libraries
+- `scope:portal` - Shop-specific libraries
 - `scope:api` - API-specific libraries
 - `type:feature` - Feature libraries
 - `type:data` - Data access libraries
@@ -160,15 +158,15 @@ This feature helps maintain a healthy CI pipeline by automatically detecting and
 
 ```
 ├── apps/
-│   ├── shop/           [scope:shop]    - Angular e-commerce app
+│   ├── shop/           [scope:portal]    - Angular e-commerce app
 │   ├── shop-e2e/                       - E2E tests for shop
 │   └── api/            [scope:api]     - Backend API with Docker
 ├── libs/
 │   ├── shop/
-│   │   ├── feature-products/        [scope:shop,type:feature] - Product listing
-│   │   ├── feature-product-detail/  [scope:shop,type:feature] - Product details
-│   │   ├── data/                    [scope:shop,type:data]    - Data access
-│   │   └── shared-ui/               [scope:shop,type:ui]      - UI components
+│   │   ├── feature-products/        [scope:portal,type:feature] - Product listing
+│   │   ├── feature-product-detail/  [scope:portal,type:feature] - Product details
+│   │   ├── data/                    [scope:portal,type:data]    - Data access
+│   │   └── shared-ui/               [scope:portal,type:ui]      - UI components
 │   ├── api/
 │   │   └── products/    [scope:api]    - Product service
 │   └── shared/
@@ -182,13 +180,13 @@ This feature helps maintain a healthy CI pipeline by automatically detecting and
 
 This repository uses tags to enforce module boundaries:
 
-| Project            | Tags                         | Can Import From              |
-| ------------------ | ---------------------------- | ---------------------------- |
-| `shop`             | `scope:shop`                 | `scope:shop`, `scope:shared` |
-| `api`              | `scope:api`                  | `scope:api`, `scope:shared`  |
-| `feature-products` | `scope:shop`, `type:feature` | `scope:shop`, `scope:shared` |
-| `data`             | `scope:shop`, `type:data`    | `scope:shared`               |
-| `models`           | `scope:shared`, `type:data`  | Nothing (base library)       |
+| Project            | Tags                           | Can Import From                |
+| ------------------ | ------------------------------ | ------------------------------ |
+| `shop`             | `scope:portal`                 | `scope:portal`, `scope:shared` |
+| `api`              | `scope:api`                    | `scope:api`, `scope:shared`    |
+| `feature-products` | `scope:portal`, `type:feature` | `scope:portal`, `scope:shared` |
+| `data`             | `scope:portal`, `type:data`    | `scope:shared`                 |
+| `models`           | `scope:shared`, `type:data`    | Nothing (base library)         |
 
 ## 📚 Useful Commands
 

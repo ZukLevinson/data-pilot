@@ -10,5 +10,5 @@ import { ButtonModule } from 'primeng/button';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
-  protected title = 'Nx Shop Demo';
+  protected title = 'Nx portal Demo';
 }

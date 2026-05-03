@@ -25,7 +25,7 @@ describe('App', () => {
 
   it('should render title in header', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Nx Shop Demo');
+    expect(compiled.querySelector('h1')?.textContent).toContain('Nx portal Demo');
   });
 
   it('should render navigation links', () => {
@@ -40,7 +40,7 @@ describe('App', () => {
   it('should render footer with correct copyright', () => {
     const footer = fixture.nativeElement.querySelector('.app-footer');
     expect(footer).toBeTruthy();
-    expect(footer?.textContent).toContain('© 2025 Nx Shop Demo');
+    expect(footer?.textContent).toContain('© 2025 Nx portal Demo');
     expect(footer?.textContent).toContain(
       'Frontend (Angular) + Backend (Express) + Shared Libraries',
     );
