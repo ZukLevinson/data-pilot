@@ -1,29 +1,29 @@
 {
-  "name": "shop",
+  "name": "portal",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
   "prefix": "app",
-  "sourceRoot": "apps/shop/src",
+  "sourceRoot": "apps/portal/src",
   "tags": ["scope:shop"],
   "targets": {
     "build": {
       "executor": "@angular/build:application",
       "outputs": ["{options.outputPath}"],
       "options": {
-        "outputPath": "dist/apps/shop",
-        "browser": "apps/shop/src/main.ts",
+        "outputPath": "dist/apps/portal",
+        "browser": "apps/portal/src/main.ts",
         "polyfills": ["zone.js"],
-        "tsConfig": "apps/shop/tsconfig.app.json",
+        "tsConfig": "apps/portal/tsconfig.app.json",
         "assets": [
           {
             "glob": "**/*",
-            "input": "apps/shop/public"
+            "input": "apps/portal/public"
           }
         ],
-        "styles": ["apps/shop/src/styles.css"],
-        "server": "apps/shop/src/main.server.ts",
+        "styles": ["apps/portal/src/styles.css"],
+        "server": "apps/portal/src/main.server.ts",
         "ssr": {
-          "entry": "apps/shop/src/server.ts"
+          "entry": "apps/portal/src/server.ts"
         },
         "outputMode": "server"
       },
@@ -57,30 +57,30 @@
       "executor": "@angular/build:dev-server",
       "configurations": {
         "production": {
-          "buildTarget": "shop:build:production"
+          "buildTarget": "portal:build:production"
         },
         "development": {
-          "buildTarget": "shop:build:development"
+          "buildTarget": "portal:build:development"
         }
       },
       "defaultConfiguration": "development",
       "options": {
-        "proxyConfig": "apps/shop/proxy.conf.json"
+        "proxyConfig": "apps/portal/proxy.conf.json"
       }
     },
     "extract-i18n": {
       "executor": "@angular/build:extract-i18n",
       "options": {
-        "buildTarget": "shop:build"
+        "buildTarget": "portal:build"
       }
     },
     "serve-static": {
       "continuous": true,
       "executor": "@nx/web:file-server",
       "options": {
-        "buildTarget": "shop:build",
+        "buildTarget": "portal:build",
         "port": 4200,
-        "staticFilePath": "dist/apps/shop/browser",
+        "staticFilePath": "dist/apps/portal/browser",
         "spa": true
       }
     }
