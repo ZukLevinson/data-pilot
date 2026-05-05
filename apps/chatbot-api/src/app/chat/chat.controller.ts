@@ -20,6 +20,11 @@ export class ChatController {
     return this.chatService.getInitialData();
   }
 
+  @Get('history')
+  async getHistory() {
+    return this.chatService.getHistory();
+  }
+
   @Post()
   async handleChat(@Body() body: ChatRequest): Promise<ChatResponse> {
     if (!body.userId || !body.question) {

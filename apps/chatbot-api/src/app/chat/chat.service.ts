@@ -422,4 +422,11 @@ Instructions:
 
     return [...mineEntities, ...clusterEntities];
   }
+
+  async getHistory() {
+    return this.prisma.savedQuery.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+  }
 }

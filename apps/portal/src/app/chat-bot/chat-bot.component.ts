@@ -9,18 +9,22 @@ import { Button } from 'primeng/button';
 import { Badge } from 'primeng/badge';
 import { Avatar } from 'primeng/avatar';
 import { Chip } from 'primeng/chip';
+import { Drawer } from 'primeng/drawer';
+import { ScrollPanel } from 'primeng/scrollpanel';
 import { MapWidgetComponent } from './map-widget/map-widget.component';
 import { MarkdownPipe } from './markdown.pipe';
+import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-chat-bot',
   standalone: true,
-  imports: [CommonModule, FormsModule, Textarea, Button, Badge, Avatar, Chip, MapWidgetComponent, MarkdownPipe],
+  imports: [CommonModule, FormsModule, Textarea, Button, Badge, Avatar, Chip, Drawer, ScrollPanel, MapWidgetComponent, MarkdownPipe],
   templateUrl: './chat-bot.component.html',
   styleUrls: ['./chat-bot.component.css']
 })
 export class ChatBotComponent implements OnInit {
   private chatService = inject(ChatService);
+  private http = inject(HttpClient);
   
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
   @ViewChild('messageInput') private messageInput!: ElementRef;
@@ -37,6 +41,21 @@ export class ChatBotComponent implements OnInit {
   currentQueryPlan = signal<any | null>(null);
   currentModel = signal<string | null>(null);
   statusText = signal<string | null>(null);
+  history = signal<any[]>([]);
+  showHistory = signal<boolean>(false);
+
+  constructor() {
+    this.loadHistory();
+  }
+
+  loadHistory() {
+    this.http.get<any[]>('/api/chat/history').subscribe(h => this.history.set(h));
+  }
+
+  selectHistory(item: any) {
+    this.inputText.set(item.name);
+    this.sendMessage();
+  }
 
   async ngOnInit() {
     this.loadInitialData();

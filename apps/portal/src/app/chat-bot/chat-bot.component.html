@@ -14,7 +14,29 @@
           <p class="subtitle">GIS Command Center</p>
         </div>
       </div>
+      <p-button icon="pi pi-history" [rounded]="true" [text]="true" (onClick)="showHistory.set(true); loadHistory()" pTooltip="Query Library"></p-button>
     </div>
+
+    <p-drawer [(visible)]="showHistory" position="left" [baseZIndex]="10000" styleClass="history-sidebar" header="ספריית שאילתות" appendTo="body">
+      <p-scrollPanel [style]="{ width: '100%', height: 'calc(100vh - 100px)' }">
+        <div class="history-list">
+          @for (item of history(); track item.id) {
+            <div class="history-item" (click)="selectHistory(item); showHistory.set(false)">
+              <div class="history-header">
+                <i class="pi pi-search"></i>
+                <span class="history-name">{{ item.name }}</span>
+              </div>
+              <div class="history-footer">
+                <span class="history-date">{{ item.createdAt | date:'short' }}</span>
+              </div>
+            </div>
+          }
+          @if (history().length === 0) {
+            <div class="empty-history">אין שאילתות שמורות</div>
+          }
+        </div>
+      </p-scrollPanel>
+    </p-drawer>
 
     <!-- Messages List -->
     <div class="chat-messages" #scrollContainer>
