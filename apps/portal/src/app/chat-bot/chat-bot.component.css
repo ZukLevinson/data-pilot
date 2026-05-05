@@ -423,44 +423,219 @@ app-map-widget {
   color: #0f172a;
 }
 
-/* Query Plan Inspector */
-.query-plan-inspector {
-  background: rgba(248, 250, 252, 0.8);
+/* Query Plan GUI */
+.query-plan-gui {
+  background: #ffffff;
   border-radius: 12px;
   border: 1px solid #e2e8f0;
   margin: 12px 0;
   overflow: hidden;
-  font-family: "Inter", sans-serif;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
 
-.plan-header {
-  background: #f1f5f9;
-  padding: 8px 12px;
+.plan-summary-header {
+  background: #f8fafc;
+  padding: 10px 14px;
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 0.75rem;
-  font-weight: 600;
-  color: #64748b;
+  font-weight: 700;
+  color: #475569;
+  border-bottom: 1px solid #f1f5f9;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.plan-summary-header i {
+  color: #2563eb;
+  font-size: 0.875rem;
+}
+
+.plan-details-grid {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.plan-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.plan-item.full {
+  grid-column: span 2;
+}
+
+.plan-item .label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.plan-item .value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.plan-item .value.count {
+  color: #2563eb;
+  font-size: 1.1rem;
+}
+
+.condition-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.condition-tag {
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.condition-tag strong {
+  color: #64748b;
+  font-weight: 600;
+}
+
+/* Logic Hierarchy GUI */
+.logic-hierarchy {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  position: relative;
+}
+
+.hierarchy-node {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.hierarchy-node.main {
+  border-inline-start: 4px solid #2563eb;
+}
+
+.hierarchy-node.relation {
+  border-inline-start: 4px solid #f59e0b;
+}
+
+.node-header {
+  padding: 6px 10px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
   border-bottom: 1px solid #e2e8f0;
 }
 
-.plan-header i {
+.node-header i {
   font-size: 0.875rem;
-  color: #3b82f6;
+  color: #64748b;
 }
 
-.plan-json {
-  margin: 0;
-  padding: 12px;
+.node-body {
+  padding: 8px 10px;
+}
+
+.logic-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  margin-bottom: 4px;
+}
+
+.logic-line:last-child {
+  margin-bottom: 0;
+}
+
+.logic-field {
+  font-weight: 600;
+  color: #1e293b;
+  min-width: 60px;
+}
+
+.logic-op {
+  color: #64748b;
   font-size: 0.75rem;
-  color: #334155;
-  background: #fff;
-  max-height: 200px;
-  overflow-y: auto;
-  line-height: 1.5;
-  white-space: pre-wrap;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.logic-val {
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.hierarchy-connector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  color: #94a3b8;
+}
+
+.hierarchy-connector i {
+  font-size: 1rem;
+}
+
+.connector-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+:host ::ng-deep .target-chip {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  height: 24px !important;
+}
+
+.plan-footer-sql {
+  background: #1e293b;
+  padding: 10px 14px;
+  border-top: 1px solid #334155;
+}
+
+.sql-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.sql-code {
+  display: block;
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+  color: #38bdf8; /* Sky Blue for SQL */
+  line-height: 1.4;
   word-break: break-all;
+  white-space: pre-wrap;
 }

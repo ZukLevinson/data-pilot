@@ -46,8 +46,8 @@ export class ChatService {
 Question: "${question}"
 
 Schema:
-- Mine: name
-- Cluster: stoneType, quantity
+- Mine (Hebrew: מכרה): name
+- Cluster (Hebrew: מקבץ): stoneType, quantity
 - Drill: name, supportedStoneTypes
 - DrillMission: stoneType, date
 
@@ -55,18 +55,23 @@ Generate a JSON Query Plan.
 Structure:
 {
   "target": "Mine" | "Cluster" | "Drill" | "DrillMission",
+  "limit": number (optional, default to 5000 if not specified),
   "conditions": {
-    "fieldName": { "operator": "contains" | "gt" | "lt" | "after" | "before", "value": any }
+    "fieldName": { "operator": "contains" | "notContains" | "gt" | "lt" | "after" | "before", "value": any }
   },
-  "mineConditions": { "name": { "operator": "contains", "value": string } },
-  "clusterConditions": { "stoneType": { "operator": "contains", "value": string } }
+  "mineConditions": { "name": { "operator": "contains" | "notContains", "value": string } },
+  "clusterConditions": { 
+    "stoneType": { "operator": "contains" | "notContains", "value": string },
+    "quantity": { "operator": "gt" | "lt", "value": number },
+    "minCount": number
+  }
 }
 
 Important:
-1. For "Mines containing [Stone]", target "Mine" and use "clusterConditions" with field "stoneType".
-2. Use "stoneType" (exactly) for mineral names. 
-3. ALWAYS use the English technical name for minerals (e.g., "Neodymium", "Dysprosium", "Europium") even if the user asks in Hebrew.
-4. Use "contains" for all string/name filters.
+1. Minerals (Neodymium, Dysprosium, etc.) are ONLY found in Clusters. 
+2. If the user asks for "Mines containing [Stone]", target "Mine" and put the stone filter in "clusterConditions" (or conditions.stoneType). NEVER put the stone name in Mine:name.
+3. Use "stoneType" (exactly) for mineral names. 
+4. ALWAYS use the English technical name for minerals even if the user asks in Hebrew.
 5. Output ONLY valid JSON.`;
 
       const planRes = await this.llm.invoke(planPrompt);
@@ -96,6 +101,7 @@ Important:
         if (queryPlan.conditions?.name) {
           where.name = { contains: queryPlan.conditions.name.value, mode: 'insensitive' };
         }
+        let stoneTypeForSql = '';
         if (queryPlan.conditions?.stoneType || queryPlan.clusterConditions?.stoneType || queryPlan.stoneType) {
           let stoneType = '';
           const rawType = queryPlan.clusterConditions?.stoneType || queryPlan.conditions?.stoneType || queryPlan.stoneType;
@@ -107,15 +113,64 @@ Important:
           }
 
           if (stoneType) {
-            this.logger.log(`Filtering mines by stoneType: ${stoneType}`);
+            stoneTypeForSql = stoneType;
+            const op = rawType.operator === 'notContains' ? 'none' : 'some';
+            this.logger.log(`Filtering mines by stoneType: ${stoneType} with operator: ${op}`);
             where.clusters = {
-              some: { stoneType: { contains: stoneType, mode: 'insensitive' } }
+              [op]: { stoneType: { contains: stoneType, mode: 'insensitive' } }
             };
           }
         }
-        this.logger.log(`Executing Mine findMany with where: ${JSON.stringify(where)}`);
-        const mines = await this.prisma.mine.findMany({ where, take: 1000 });
+
+        const resultLimit = queryPlan.limit || 5000;
+
+        // Aggregate Filter: at least X clusters
+        if (queryPlan.clusterConditions?.minCount) {
+          const minCount = queryPlan.clusterConditions.minCount;
+          this.logger.log(`Filtering mines with at least ${minCount} clusters`);
+          const matchingMineIds = await this.prisma.$queryRawUnsafe<{mine_id: string}[]>(
+            `SELECT mine_id FROM "Cluster" 
+             ${stoneTypeForSql ? `WHERE stone_type ILIKE '%${stoneTypeForSql}%'` : ''}
+             GROUP BY mine_id 
+             HAVING COUNT(*) >= ${minCount}
+             LIMIT ${resultLimit}`
+          );
+          const ids = matchingMineIds.map(m => m.mine_id);
+          where.id = { in: ids };
+        }
+
+        this.logger.log(`Executing Mine findMany for ${queryPlan.target}`);
+        const mines = await this.prisma.mine.findMany({ where, take: resultLimit });
         const totalCount = await this.prisma.mine.count({ where });
+        
+        // Build Dynamic SQL string for transparency
+        let sql = `SELECT count(*) FROM "Mine"`;
+        const joinClauses: string[] = [];
+        const whereClauses: string[] = [];
+
+        if (queryPlan.conditions?.name) {
+          whereClauses.push(`"Mine".name ILIKE '%${queryPlan.conditions.name.value}%'`);
+        }
+
+        if (stoneTypeForSql || queryPlan.clusterConditions) {
+          joinClauses.push(`INNER JOIN "Cluster" ON "Cluster".mine_id = "Mine".id`);
+          if (stoneTypeForSql) {
+            whereClauses.push(`"Cluster".stone_type ILIKE '%${stoneTypeForSql}%'`);
+          }
+          if (queryPlan.clusterConditions?.quantity) {
+            const q = queryPlan.clusterConditions.quantity;
+            const op = q.operator === 'gt' ? '>' : q.operator === 'lt' ? '<' : '=';
+            whereClauses.push(`"Cluster".quantity ${op} ${q.value}`);
+          }
+          if (queryPlan.clusterConditions?.minCount) {
+            whereClauses.push(`(SELECT COUNT(*) FROM "Cluster" c WHERE c.mine_id = "Mine".id ${stoneTypeForSql ? `AND c.stone_type ILIKE '%${stoneTypeForSql}%'` : ''}) >= ${queryPlan.clusterConditions.minCount}`);
+          }
+        }
+
+        if (joinClauses.length > 0) sql += ` ${joinClauses.join(' ')}`;
+        if (whereClauses.length > 0) sql += ` WHERE ${whereClauses.join(' AND ')}`;
+        (queryPlan as any).generatedSql = sql;
+        (queryPlan as any).totalCount = totalCount;
         
         // Fetch WKTs separately since Prisma doesn't support them in findMany
         const ids = mines.map(m => m.id);
@@ -133,7 +188,6 @@ Important:
             distance: 0
           }));
         }
-        (queryPlan as any).totalCount = totalCount;
       } else if (queryPlan.target === 'Cluster') {
         const where: any = {};
         if (queryPlan.conditions?.stoneType) {
@@ -146,10 +200,11 @@ Important:
           if (op === 'lt') where.quantity = { lt: val };
         }
         
+        const resultLimit = queryPlan.limit || 5000;
         const clusters = await this.prisma.cluster.findMany({ 
           where, 
           include: { mine: true },
-          take: 1000 
+          take: resultLimit 
         });
         const totalCount = await this.prisma.cluster.count({ where });
         
@@ -169,6 +224,7 @@ Important:
           }));
         }
         (queryPlan as any).totalCount = totalCount;
+        (queryPlan as any).generatedSql = `SELECT count(*) FROM "Cluster" ${queryPlan.conditions?.stoneType ? `WHERE stone_type ILIKE '%${queryPlan.conditions.stoneType.value}%'` : ''}`;
       } else if (queryPlan.target === 'DrillMission') {
         const where: any = {};
         if (queryPlan.conditions?.date) {
@@ -180,11 +236,23 @@ Important:
         if (queryPlan.mineConditions?.name) {
           where.mine = { name: { contains: queryPlan.mineConditions.name.value, mode: 'insensitive' } };
         }
+        
+        if (queryPlan.clusterConditions?.stoneType) {
+          if (!where.mine) where.mine = {};
+          const stoneType = typeof queryPlan.clusterConditions.stoneType === 'string' 
+            ? queryPlan.clusterConditions.stoneType 
+            : (queryPlan.clusterConditions.stoneType.value || queryPlan.clusterConditions.stoneType.contains);
+          
+          where.mine.clusters = {
+            some: { stoneType: { contains: stoneType, mode: 'insensitive' } }
+          };
+        }
 
+        const resultLimit = queryPlan.limit || 5000;
         const missions = await this.prisma.drillMission.findMany({
           where,
           include: { mine: true, drill: true },
-          take: 1000
+          take: resultLimit
         });
         const totalCount = await this.prisma.drillMission.count({ where });
 
@@ -204,6 +272,7 @@ Important:
           distance: 0
         }));
         (queryPlan as any).totalCount = totalCount;
+        (queryPlan as any).generatedSql = `SELECT count(*) FROM "DrillMission" INNER JOIN "Mine" ON "DrillMission".mine_id = "Mine".id ${queryPlan.mineConditions?.name ? `WHERE "Mine".name ILIKE '%${queryPlan.mineConditions.name.value}%'` : ''}`;
       }
 
       // 3. Persist the Query for future use
@@ -234,6 +303,7 @@ Important:
 
     const prompt = `You are a Rare Earth Mining Virtualization Expert.
 Question: "${question}"
+Query Plan Used: ${JSON.stringify(queryPlan)}
 Results Shown in Details: ${displayEntities.length}
 Remaining Results in List: ${moreCount}
 Total Count in Database: ${queryPlan.totalCount || entities.length}
@@ -243,13 +313,13 @@ ${contextText}
 
 Instructions:
 1. Answer in Hebrew professionally.
-2. If results were found:
-   - Summarize the first few results.
-   - Explicitly mention that there are ${moreCount} more entities of this type found and they are all displayed on the map.
-   - Mention the total count in the database (${queryPlan.totalCount || entities.length}).
-3. If NO results were found, inform the user clearly. Do NOT invent reasons.
-4. Mention that the query plan has been saved.
-5. Keep the response concise and focused on the spatial results.`;
+2. Keep the response VERY brief (1-2 sentences max).
+3. Do NOT explain the search logic, filters, or criteria in this text response (the user can see them in the "מפרט חיפוש מבנה" GUI).
+4. If results were found:
+   - Mention the total count found (${queryPlan.totalCount || entities.length}) and that they are displayed on the map.
+5. If NO results were found, inform the user briefly.
+6. Mention that the query plan has been saved.
+7. Focus strictly on the results and the map.`;
 
     const stream = await this.llm.stream(prompt);
     for await (const chunk of stream) {
@@ -258,8 +328,8 @@ Instructions:
   }
 
   async getInitialData(): Promise<EntitySearchResult[]> {
-    // 1. Fetch a sample of Mines
-    const mines = await this.prisma.mine.findMany({ take: 200 });
+    // 1. Fetch a sample of Mines (up to 1000 for initial dense view)
+    const mines = await this.prisma.mine.findMany({ take: 1000 });
     const mineIds = mines.map(m => m.id);
     
     // 2. Fetch WKTs for these Mines
@@ -277,10 +347,10 @@ Instructions:
       distance: 0
     }));
 
-    // 3. Fetch ONLY clusters belonging to the loaded Mines to ensure they appear "inside"
+    // 3. Fetch clusters belonging to these Mines (up to 4000)
     const clusters = await this.prisma.cluster.findMany({ 
       where: { mineId: { in: mineIds } },
-      take: 2000, // Limit to avoid browser lag
+      take: 4000, 
       include: { mine: true } 
     });
     

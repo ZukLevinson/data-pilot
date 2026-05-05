@@ -52,7 +52,7 @@
       "defaultConfiguration": "production"
     },
     "serve": {
-      "dependsOn": ["chatbot-api:serve"],
+      "dependsOn": [],
       "continuous": true,
       "executor": "@angular/build:dev-server",
       "configurations": {

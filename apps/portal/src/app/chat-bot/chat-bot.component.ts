@@ -8,13 +8,14 @@ import { Textarea } from 'primeng/textarea';
 import { Button } from 'primeng/button';
 import { Badge } from 'primeng/badge';
 import { Avatar } from 'primeng/avatar';
+import { Chip } from 'primeng/chip';
 import { MapWidgetComponent } from './map-widget/map-widget.component';
 import { MarkdownPipe } from './markdown.pipe';
 
 @Component({
   selector: 'app-chat-bot',
   standalone: true,
-  imports: [CommonModule, FormsModule, Textarea, Button, Badge, Avatar, MapWidgetComponent, MarkdownPipe],
+  imports: [CommonModule, FormsModule, Textarea, Button, Badge, Avatar, Chip, MapWidgetComponent, MarkdownPipe],
   templateUrl: './chat-bot.component.html',
   styleUrls: ['./chat-bot.component.css']
 })
@@ -163,5 +164,41 @@ export class ChatBotComponent implements OnInit {
         this.messageInput.nativeElement.focus();
       }
     }, 100);
+  }
+
+  getReadableField(field: any): string {
+    const fieldMap: Record<string, string> = {
+      'stoneType': 'סוג חומר',
+      'quantity': 'כמות',
+      'name': 'שם',
+      'date': 'תאריך',
+      'supportedStoneTypes': 'חומרים נתמכים',
+      'minCount': 'כמות מינימלית של מקבצים'
+    };
+    return fieldMap[field] || field;
+  }
+
+  getReadableOperator(op: any): string {
+    const opMap: Record<string, string> = {
+      'contains': 'מכיל',
+      'notContains': 'לא מכיל',
+      'gt': 'גדול מ-',
+      'lt': 'קטן מ-',
+      'after': 'אחרי',
+      'before': 'לפני',
+      'equals': 'שווה ל-',
+      'in': 'נמצא בתוך'
+    };
+    return opMap[op] || op;
+  }
+
+  getReadableTarget(target: any): string {
+    const targetMap: Record<string, string> = {
+      'Mine': 'מכרה',
+      'Cluster': 'מקבץ',
+      'Drill': 'מקדח',
+      'DrillMission': 'משימת קידוח'
+    };
+    return targetMap[target] || target;
   }
 }

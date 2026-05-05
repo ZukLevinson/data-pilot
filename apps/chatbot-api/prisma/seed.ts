@@ -24,50 +24,71 @@ async function main() {
     await prisma.drill.createMany({
       data: [
         { name: 'WorldDriller-8000', supportedStoneTypes: stoneTypes.slice(0, 4) },
-        { name: 'DeepMiner-X', supportedStoneTypes: stoneTypes.slice(4) }
+        { name: 'DeepMiner-X', supportedStoneTypes: stoneTypes.slice(4) },
+        { name: 'FranceCore-Pro', supportedStoneTypes: stoneTypes },
+        { name: 'AlpineDrill-V2', supportedStoneTypes: ['Neodymium', 'Dysprosium'] },
+        { name: 'Titan-Drill-Max', supportedStoneTypes: ['Terbium', 'Yttrium'] }
       ]
     });
+
+    const drillEntities = await prisma.drill.findMany();
 
     for (let i = 0; i < TOTAL_MINES; i += BATCH_SIZE) {
       const currentBatchSize = Math.min(BATCH_SIZE, TOTAL_MINES - i);
       
       const mineValues: string[] = [];
       const clusterValues: string[] = [];
+      const missionValues: string[] = [];
       
       for (let j = 0; j < currentBatchSize; j++) {
         const mineId = crypto.randomUUID();
         const mineName = `French-Mine-${i + j}`;
         
         // France Mainland Bounding Box
-        const lon = -4.5 + Math.random() * 12.5; // From -4.5 to 8.0
-        const lat = 42.0 + Math.random() * 9.0;  // From 42.0 to 51.0
+        const lon = -4.5 + Math.random() * 12.5; 
+        const lat = 42.0 + Math.random() * 9.0;  
         
         const mineSize = 0.002; 
         const poly = `POLYGON((${lon - mineSize/2} ${lat - mineSize/2}, ${lon + mineSize/2} ${lat - mineSize/2}, ${lon + mineSize/2} ${lat + mineSize/2}, ${lon - mineSize/2} ${lat + mineSize/2}, ${lon - mineSize/2} ${lat - mineSize/2}))`;
         mineValues.push(`('${mineId}', '${mineName}', ST_GeomFromText('${poly}', 4326), NOW())`);
 
+        // Clusters...
         const clusterCount = Math.floor(Math.random() * 20) + 40; 
-        const clusterSpread = mineSize * 0.7; // Fixed: Now relative to the actual mine size
+        const clusterSpread = mineSize * 0.7;
         for (let k = 0; k < clusterCount; k++) {
           const clusterId = crypto.randomUUID();
           const stoneType = stoneTypes[Math.floor(Math.random() * stoneTypes.length)];
           const quantity = Math.floor(Math.random() * 450000) + 50000;
-          
-          // Generate within [-0.015, 0.015] relative to center
           const cLon = lon + (Math.random() * clusterSpread - clusterSpread/2);
           const cLat = lat + (Math.random() * clusterSpread - clusterSpread/2);
-          
           clusterValues.push(`('${clusterId}', '${stoneType}', ${quantity}, ST_GeomFromText('POINT(${cLon} ${cLat})', 4326), '${mineId}', NOW())`);
+        }
+
+        // Drill Missions (Seed ~10,000 missions total across first batches)
+        if (i < 50000 && Math.random() < 0.2) {
+           const missionId = crypto.randomUUID();
+           const drill = drillEntities[Math.floor(Math.random() * drillEntities.length)];
+           const stoneType = stoneTypes[Math.floor(Math.random() * stoneTypes.length)];
+           
+           // Date between -5 and +5 years
+           const now = new Date();
+           const offsetMs = (Math.random() * 10 - 5) * 365 * 24 * 60 * 60 * 1000;
+           const missionDate = new Date(now.getTime() + offsetMs);
+           
+           missionValues.push(`('${missionId}', '${stoneType}', '${missionDate.toISOString()}', '${drill.id}', '${mineId}', NOW())`);
         }
       }
 
       await prisma.$executeRawUnsafe(`INSERT INTO "Mine" (id, name, geom, created_at) VALUES ${mineValues.join(',')}`);
       
-      // Clusters can be very large, split cluster inserts into smaller chunks
       const clusterSubBatchSize = 1000;
       for (let k = 0; k < clusterValues.length; k += clusterSubBatchSize) {
         const subBatch = clusterValues.slice(k, k + clusterSubBatchSize);
         await prisma.$executeRawUnsafe(`INSERT INTO "Cluster" (id, stone_type, quantity, geom, mine_id, created_at) VALUES ${subBatch.join(',')}`);
+      }
+
+      if (missionValues.length > 0) {
+        await prisma.$executeRawUnsafe(`INSERT INTO "DrillMission" (id, stone_type, date, drill_id, mine_id, created_at) VALUES ${missionValues.join(',')}`);
       }
 
       if ((i + currentBatchSize) % 1000 === 0) {

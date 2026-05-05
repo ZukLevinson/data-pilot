@@ -55,14 +55,79 @@
               </div>
             }
             
-            <!-- Query Plan Section -->
+            <!-- Query Plan GUI -->
             @if (message.queryPlan) {
-              <div class="query-plan-inspector">
-                <div class="plan-header">
-                  <i class="pi pi-code"></i>
-                  <span>Structured Query Plan</span>
+              <div class="query-plan-gui">
+                <div class="plan-summary-header">
+                  <i class="pi pi-filter-fill"></i>
+                  <span>מפרט חיפוש מובנה</span>
                 </div>
-                <pre class="plan-json">{{ message.queryPlan | json }}</pre>
+                
+                <div class="plan-details-grid">
+                  <div class="plan-item">
+                    <span class="label">יעד חיפוש:</span>
+                    <div class="value">
+                      <p-chip [label]="getReadableTarget(message.queryPlan.target)" icon="pi pi-tag" styleClass="target-chip"></p-chip>
+                    </div>
+                  </div>
+
+                  @if (message.queryPlan.totalCount) {
+                    <div class="plan-item">
+                      <span class="label">נמצאו בבסיס הנתונים:</span>
+                      <span class="value count">{{ message.queryPlan.totalCount | number }}</span>
+                    </div>
+                  }
+
+                  @if ((message.queryPlan.conditions && (message.queryPlan.conditions | json) !== '{}') || message.queryPlan.clusterConditions) {
+                    <div class="plan-item full">
+                      <span class="label">לוגיקת סינון מרחבית:</span>
+                      
+                      <div class="logic-hierarchy">
+                        <!-- Main Entity -->
+                        <div class="hierarchy-node main">
+                          <div class="node-header">
+                            <i [class]="'pi ' + (message.queryPlan.target === 'Mine' ? 'pi-map' : 'pi-search')"></i>
+                            <span>{{ getReadableTarget(message.queryPlan.target) }}</span>
+                          </div>
+                          <div class="node-body">
+                            @for (cond of message.queryPlan.conditions | keyvalue; track cond.key) {
+                              <div class="logic-line">
+                                <span class="logic-field">{{ getReadableField(cond.key) }}</span>
+                                <span class="logic-op">{{ getReadableOperator($any(cond.value).operator || $any(cond.value).equals || 'equals') }}</span>
+                                <span class="logic-val">{{ $any(cond.value).value || cond.value }}</span>
+                              </div>
+                            }
+                          </div>
+                        </div>
+
+                        <!-- Relation Arrow -->
+                        @if (message.queryPlan.clusterConditions) {
+                          <div class="hierarchy-connector">
+                            <i class="pi pi-angle-double-down"></i>
+                            <span class="connector-label">מכיל רכיבים פנימיים מסוג:</span>
+                          </div>
+
+                          <!-- Related Entity (Cluster) -->
+                          <div class="hierarchy-node relation">
+                            <div class="node-header">
+                              <i class="pi pi-database"></i>
+                              <span>מקבץ (Cluster)</span>
+                            </div>
+                            <div class="node-body">
+                              @for (cond of message.queryPlan.clusterConditions | keyvalue; track cond.key) {
+                                <div class="logic-line">
+                                  <span class="logic-field">{{ getReadableField(cond.key) }}</span>
+                                  <span class="logic-op">{{ getReadableOperator($any(cond.value).operator || 'equals') }}</span>
+                                  <span class="logic-val">{{ $any(cond.value).value || cond.value }}</span>
+                                </div>
+                              }
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
               </div>
             }
 
