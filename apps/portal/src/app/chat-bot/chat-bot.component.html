@@ -16,21 +16,27 @@
       <div class="message-wrapper" [class.user]="message.sender === 'user'">
         <div class="message-bubble" [class.error]="message.isError">
           <!-- Thinking Section -->
-          <div *ngIf="message.thought" class="thought-process">
-            <div class="thought-header">
-              <i class="pi pi-sparkles"></i>
-              <span>Reasoning...</span>
+          @if (message.thought) {
+            <div class="thought-process">
+              <div class="thought-header">
+                <i class="pi pi-sparkles"></i>
+                <span>Reasoning...</span>
+              </div>
+              <div class="thought-text">{{ message.thought }}</div>
             </div>
-            <div class="thought-text">{{ message.thought }}</div>
-          </div>
+          }
           
           <!-- Actual Answer -->
-          <div *ngIf="message.text" class="answer-text">{{ message.text }}</div>
+          @if (message.text) {
+            <div class="answer-text">{{ message.text }}</div>
+          }
           
           <!-- Typing Indicator if no text and no thought yet -->
-          <div *ngIf="!message.text && !message.thought && isWaiting()" class="typing-indicator">
-            <span></span><span></span><span></span>
-          </div>
+          @if (!message.text && !message.thought && isWaiting()) {
+            <div class="typing-indicator">
+              <span></span><span></span><span></span>
+            </div>
+          }
         </div>
         <div class="message-time">
           {{ message.timestamp | date:'HH:mm' }}
@@ -45,14 +51,13 @@
       <textarea 
         #messageInput
         pInputTextarea
-        autofocus
         [autoResize]="true"
         rows="1"
         [ngModel]="inputText()" 
         (ngModelChange)="inputText.set($event)" 
         (keydown)="handleKeyPress($event)"
         name="messageInput"
-        placeholder="הקלד את ההודעה שלך..." 
+        placeholder="הקלד את השאילתא שלך..." 
         autocomplete="off"
         class="message-input w-full"
       ></textarea>
