@@ -1,25 +1,75 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
-  output          = "../../../node_modules/.prisma/client"
 }
 
 datasource db {
   provider   = "postgresql"
-  extensions = [vector, postgis]
+  extensions = [postgis]
 }
 
-model Area {
-  id        String                  @id @default(uuid()) @db.Uuid
-  name      String                  @default("Unnamed Area")
-  content   String
-  type      String
-  color     String                  @default("#3b82f6")
-  // PostGIS geometry column (SRID 4326 for WGS 84)
-  geom      Unsupported("geometry(Geometry, 4326)")?
-  // Using pgvector's vector type with 768 dimensions (for nomic-embed-text)
-  embedding Unsupported("vector(768)")?
-  createdAt DateTime                @default(now()) @map("created_at")
+model Mine {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  // Geographic boundary (Polygon)
+  geom      Unsupported("geometry(Polygon, 4326)")?
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  clusters  Cluster[]
+  missions  DrillMission[]
 
-  @@map("Area")
+  @@map("Mine")
+}
+
+model Cluster {
+  id        String   @id @default(uuid()) @db.Uuid
+  stoneType String   @map("stone_type")
+  quantity  Float
+  // Geographic location (Point)
+  geom      Unsupported("geometry(Point, 4326)")?
+  
+  mineId    String   @db.Uuid @map("mine_id")
+  mine      Mine     @relation(fields: [mineId], references: [id])
+  
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("Cluster")
+}
+
+model Drill {
+  id                 String   @id @default(uuid()) @db.Uuid
+  name               String
+  supportedStoneTypes String[] @map("supported_stone_types")
+  
+  createdAt          DateTime @default(now()) @map("created_at")
+  missions           DrillMission[]
+
+  @@map("Drill")
+}
+
+model DrillMission {
+  id        String   @id @default(uuid()) @db.Uuid
+  
+  mineId    String   @db.Uuid @map("mine_id")
+  mine      Mine     @relation(fields: [mineId], references: [id])
+  
+  drillId   String   @db.Uuid @map("drill_id")
+  drill     Drill    @relation(fields: [drillId], references: [id])
+  
+  stoneType String   @map("stone_type")
+  date      DateTime
+  
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("DrillMission")
+}
+
+model SavedQuery {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String?
+  query     Json     // Stored query structure (JSON)
+  sql       String?  // The generated SQL string for transparency
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("SavedQuery")
 }

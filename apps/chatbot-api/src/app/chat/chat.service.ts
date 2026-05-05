@@ -38,246 +38,169 @@ export class ChatService {
     const isAddQuery = /add|keep|also|בנוסף|תתקדם|תשאיר|וכן|תצרף|תוסיף/i.test(question);
     const mode: 'replace' | 'append' = isAddQuery ? 'append' : 'replace';
 
-    // Extract requested result count (e.g. "show me 10 areas" → limit=10)
-    // If user says "all" / "כל" / "הכל", remove the limit
+    // Extract requested result count
     const isAllQuery = /\ball\b|כל\s+ה|את\s+כל|הכל|הצג\s+הכל/i.test(question);
     const countMatch = question.match(/\b(\d+)\b/);
-    const requestedLimit = isAllQuery ? 10000 : (countMatch ? Math.min(parseInt(countMatch[1], 10), 1000) : 5);
+    const requestedLimit = isAllQuery ? 10000 : (countMatch ? Math.min(parseInt(countMatch[1], 10), 1000) : 10);
 
-    // 1. Extract potential filters (Name, Color, Type) using a quick LLM pass
-    let filters: { name?: string, type?: string, color?: string } = {};
+    yield { status: 'מנתח את השאלה...' };
+
+    // 1. Determine the intent and filters using LLM
+    let analysis: { 
+      targetTable: 'Mine' | 'Cluster' | 'Drill' | 'DrillMission',
+      filters: Record<string, any>,
+      spatialCity?: string
+    } = { targetTable: 'Cluster', filters: {} };
+
     try {
-      const filterPrompt = `Extract geographic filters from the question: "${question}".
-Return ONLY a JSON object: {"name": string, "type": string, "color": string}. 
+      const intentPrompt = `Analyze the GIS question: "${question}".
+Determine which table to query and what filters to apply.
+Tables:
+- Mine: Geographic boundaries of mining areas. Fields: name.
+- Cluster: Groups of stones at a location. Fields: stoneType, quantity.
+- Drill: Mining equipment. Fields: name, supportedStoneTypes (array).
+- DrillMission: Planned drilling tasks. Fields: stoneType, date.
 
-CRITICAL RULES:
-1. ONLY include a field if it is EXPLICITLY and LITERALLY mentioned in the question.
-2. If a property is not mentioned, DO NOT include it in the JSON at all (omit the key).
-3. "areas", "אזורים", "איזורים", "אזור", "איזור", or "ישויות" are GENERIC terms. DO NOT assign a "type" if these are the only terms used.
-4. NEVER guess "point" as a default type unless they literally say "points".
-5. If the user says "red areas", set color to "#ef4444" and leave "name" and "type" OUT.
-6. DO NOT guess the type if not mentioned.
-7. DO NOT use the question text as the "name" unless they say "named X" or "שם X".
-8. NUMBERS (like 5, 10, 100) are ALWAYS quantity counts, NEVER names. Ignore them entirely.
-9. Be clinical and minimal.
+Return ONLY a JSON object: 
+{
+  "targetTable": "Mine" | "Cluster" | "Drill" | "DrillMission",
+  "filters": { "field": "value" },
+  "spatialCity": "city name if mentioned"
+}
 
-EXAMPLES:
-- "how many red areas" -> {"color": "#ef4444"}
-- "circles in Paris" -> {"type": "circle"}
-- "areas named France" -> {"name": "France"}
-- "blue polygons" -> {"color": "#3b82f6", "type": "polygon"}
-- "תציג 5 אזורים" -> {}
-- "תציג 5 איזורים" -> {}
-- "הצג 10 אזורים אדומים" -> {"color": "#ef4444"}
-- "אזורים אדומים" -> {"color": "#ef4444"}
-- "הצג עיגולים כחולים" -> {"color": "#3b82f6", "type": "circle"}
-- "הצג 5 עיגולים" -> {"type": "circle"}
-- "הצג נקודות" -> {"type": "point"}
-- "כמה מסדרונות יש?" -> {"type": "corridor"}
-- "show me 7 circles" -> {"type": "circle"}
-- "show me green areas" -> {"color": "#10b981"}
-- "show me red circles" -> {"color": "#ef4444", "type": "circle"}
+Rules:
+1. Use "Cluster" if they ask about stones or locations of materials.
+2. Use "Mine" if they ask about areas or boundaries.
+3. Use "Drill" if they ask about equipment or what can drill what.
+4. Use "DrillMission" if they ask about schedules or missions.
+5. If the user mentions a city, put it in "spatialCity".`;
 
-Colors: #ef4444 (red), #f97316 (orange), #f59e0b (yellow), #10b981 (green), #3b82f6 (blue), #6366f1 (indigo), #8b5cf6 (purple), #d946ef (pink).
-Types: point, circle, open polygon, closed polygon, corridor, ellipse.`;
-      
-      const filterRes = await this.llm.invoke(filterPrompt);
-      const match = filterRes.content.toString().match(/\{[\s\S]*\}/);
+      const intentRes = await this.llm.invoke(intentPrompt);
+      const match = intentRes.content.toString().match(/\{[\s\S]*\}/);
       if (match) {
-        filters = JSON.parse(match[0]);
-        this.logger.log(`Extracted Filters: ${JSON.stringify(filters)}`);
+        analysis = JSON.parse(match[0]);
+        this.logger.log(`Intent Analysis: ${JSON.stringify(analysis)}`);
       }
-    } catch {
-      this.logger.warn('Failed to extract filters, falling back to semantic only.');
+    } catch (e) {
+      this.logger.warn('Failed to analyze intent, defaulting to Cluster.');
     }
 
-    // 1. Detect if this is a general/quantitative question
-    const isGeneralQuery = /count|how many|כמה|מספר|כמות/i.test(question);
-    
-    // Type detection mapping for Hebrew/English
-
-    // Post-process: strip any filter the LLM hallucinated for purely generic queries
-    // e.g. "תציג 5 אזורים" / "תציג 5 איזורים" → no filter at all
-    const hasExplicitType = /circle|מעגל|עיגול(ים)?|point|נקוד(ה|ות)|polygon|פוליגון|מצולע(ים)?|corridor|מסדרון|מסדרונות|פרוזדור|ellipse|אליפס(ה|ות)/i.test(question);
-    const hasExplicitColor = /red|אדו(ם|מ)|blue|כחו(ל|ל)|green|ירו(ק|ק)|orange|כתו(ם|מ)|yellow|צהו(ב|ב)|purple|סגו(ל|ל)|pink|ורו(ד|ד)|indigo|חום|לבן|שחור|אפור|זהב/i.test(question);
-    const hasExplicitName = /named|שם|בשם/i.test(question);
-
-    if (!hasExplicitType) delete filters.type;
-    if (!hasExplicitColor) delete filters.color;
-    if (!hasExplicitName) delete filters.name;
-
-    // Spatial Resolver for major cities (Pilot)
+    // Spatial Resolver for major cities
     const cities: Record<string, [number, number]> = {
       'tel aviv': [34.7818, 32.0853],
       'תל אביב': [34.7818, 32.0853],
       'jerusalem': [35.2137, 31.7683],
       'ירושלים': [35.2137, 31.7683],
-      'haifa': [34.9896, 32.7940],
-      'חיפה': [34.9896, 32.7940],
-      'paris': [2.3522, 48.8566],
-      'פריז': [2.3522, 48.8566],
-      'marseille': [5.3698, 43.2965],
-      'מרסיי': [5.3698, 43.2965],
+      'beer sheva': [34.7913, 31.2518],
+      'באר שבע': [34.7913, 31.2518],
+      'eilat': [34.9512, 29.5577],
+      'אילת': [34.9512, 29.5577],
     };
 
     let targetCity = null;
-    for (const city in cities) {
-      if (question.toLowerCase().includes(city)) {
-        targetCity = { name: city, coords: cities[city] };
-        break;
-      }
+    const cityKey = analysis.spatialCity?.toLowerCase();
+    if (cityKey && cities[cityKey]) {
+      targetCity = { name: analysis.spatialCity, coords: cities[cityKey] };
     }
 
-    // Extract radius (default to 5km if near is mentioned but no radius)
-    let radiusKm = 5;
-    const radiusMatch = question.match(/(\d+)\s*(km|קילומטר|ק"מ)/i);
-    if (radiusMatch) {
-      radiusKm = parseInt(radiusMatch[1]);
-    }
+    yield { status: 'מחפש במאגר הנתונים...' };
 
-    if (isGeneralQuery) {
-      let totalCount = 0;
-      let filteredCount = 0;
-      let spatialFilteredCount = 0;
+    let results: any[] = [];
+    let entities: EntitySearchResult[] = [];
+
+    // Construct Query based on Target Table
+    if (analysis.targetTable === 'Mine') {
+      results = await this.prisma.mine.findMany({
+        where: analysis.filters,
+        take: requestedLimit,
+      });
+      // Get WKT for geometry
+      const rawResults = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT id, name, ST_AsText(geom) as wkt FROM "Mine" 
+        WHERE name ILIKE $1 LIMIT $2
+      `, `%${analysis.filters.name || ''}%`, requestedLimit);
       
-      const totalRes = await this.prisma.$queryRaw<{ count: number }[]>`SELECT count(*)::int as count FROM "Area"`;
-      totalCount = totalRes[0]?.count ?? 0;
-
-      // Build dynamic WHERE clause based on extracted filters
-      const whereClauses = ['1=1'];
-      if (filters.type) whereClauses.push(`type LIKE '%${filters.type}%'`);
-      if (filters.color) whereClauses.push(`color = '${filters.color}'`);
-      if (filters.name) whereClauses.push(`name ILIKE '%${filters.name}%'`);
-      const whereSql = whereClauses.join(' AND ');
-
-      const filteredRes = await this.prisma.$queryRawUnsafe<{ count: number }[]>(`SELECT count(*)::int as count FROM "Area" WHERE ${whereSql}`);
-      filteredCount = filteredRes[0]?.count ?? 0;
-
-      if (targetCity) {
-        const [lon, lat] = targetCity.coords;
-        const spatialRes = await this.prisma.$queryRawUnsafe<{ count: number }[]>(`
-          SELECT count(*)::int as count 
-          FROM "Area" a 
-          WHERE ${whereSql} AND ST_Distance(a.geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) <= ${radiusKm * 1000}
-        `);
-        spatialFilteredCount = spatialRes[0]?.count ?? 0;
-      }
-
-      const filterSummary = [
-        filters.type ? `סוג: "${filters.type}"` : '',
-        filters.color ? `צבע: "${filters.color}"` : '',
-        filters.name ? `שם: "${filters.name}"` : '',
-        targetCity ? `מיקום: "${targetCity.name}" (רדיוס ${radiusKm} ק"מ)` : '',
-      ].filter(Boolean).join(', ');
-
-      const prompt = `אתה עוזר GIS. ענה בעברית בצורה תמציתית ומדויקת.
-
-שאלת המשתמש: "${question}"
-
-נתונים ממסד הנתונים:
-- סה"כ אזורים במערכת: ${totalCount}
-${filterSummary ? `- פילטרים שהופעלו: ${filterSummary}\n- אזורים שעומדים בקריטריונים: ${filteredCount}` : ''}
-${targetCity ? `- מתוכם באזור "${targetCity.name}" (רדיוס ${radiusKm} ק"מ): ${spatialFilteredCount} אזורים` : ''}
-
-ענה ישירות לשאלה בהתאם לנתונים שסופקו. אל תאמר שאינך יכול לענות.`;
+      entities = rawResults.map(r => ({
+        id: r.id,
+        name: r.name,
+        type: 'Mine',
+        content: `Mine boundary for ${r.name}`,
+        color: '#3b82f6',
+        wkt: r.wkt,
+        distance: 0
+      }));
+    } else if (analysis.targetTable === 'Cluster') {
+      let whereSql = '1=1';
+      if (analysis.filters.stoneType) whereSql += ` AND stone_type ILIKE '%${analysis.filters.stoneType}%'`;
       
-      yield { status: 'מחשב כמות מורכבת...' };
-      const stream = await this.llm.stream(prompt);
-      for await (const chunk of stream) {
-        if (chunk.content) yield { content: chunk.content as string };
-      }
-      return;
-    }
-    // Detect if this is a "Show me" query (visual only)
-    const isShowQuery = /show|הצג|תראה|תציג/i.test(question) && !/count|how many|כמה/i.test(question);
-
-    // Build dynamic WHERE clause
-    let whereSql = '1=1';
-    if (filters.type) whereSql += ` AND type LIKE '%${filters.type}%'`;
-    if (filters.color) whereSql += ` AND color = '${filters.color}'`;
-    if (filters.name) whereSql += ` AND name ILIKE '%${filters.name}%'`;
-
-    // 2. Query Postgres for closest areas
-    let areas: EntitySearchResult[] = [];
-    
-    if (targetCity) {
-      this.logger.log(`Performing Spatial Search for city: ${targetCity.name}`);
-      const [lon, lat] = targetCity.coords;
-      // Spatial KNN search using PostGIS <-> operator
-      areas = await this.prisma.$queryRawUnsafe<EntitySearchResult[]>(`
-        SELECT a.id, a.name, a.content, a.type, a.color, ST_AsText(a.geom) as wkt, 
-               ST_Distance(a.geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) / 1000 as distance
-        FROM "Area" a
+      const rawResults = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT c.id, c.stone_type as "stoneType", c.quantity, ST_AsText(c.geom) as wkt, m.name as "mineName"
+        FROM "Cluster" c
+        JOIN "Mine" m ON c.mine_id = m.id
         WHERE ${whereSql}
-        ORDER BY a.geom <-> ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)
-        LIMIT ${requestedLimit};
+        LIMIT ${requestedLimit}
       `);
-    } else {
-      // Fallback to Semantic Vector Search
-      const questionEmbedding = await this.embeddings.embedQuery(question);
-      const vectorString = `[${questionEmbedding.join(',')}]`;
-      
-      areas = await this.prisma.$queryRawUnsafe<EntitySearchResult[]>(`
-        SELECT a.id, a.name, a.content, a.type, a.color, ST_AsText(a.geom) as wkt, a.embedding <=> '${vectorString}'::vector as distance
-        FROM "Area" a
-        WHERE ${whereSql}
-        ORDER BY distance ASC
-        LIMIT ${requestedLimit};
-      `);
+
+      entities = rawResults.map(r => ({
+        id: r.id,
+        name: r.stoneType,
+        type: 'Cluster',
+        content: `Stone Type: ${r.stoneType}, Quantity: ${r.quantity}kg, Mine: ${r.mineName}`,
+        color: '#f59e0b',
+        wkt: r.wkt,
+        distance: 0
+      }));
+    } else if (analysis.targetTable === 'Drill') {
+      const drills = await this.prisma.drill.findMany({
+        where: analysis.filters.name ? { name: { contains: analysis.filters.name, mode: 'insensitive' } } : {},
+        take: requestedLimit
+      });
+      entities = drills.map(d => ({
+        id: d.id,
+        name: d.name,
+        type: 'Drill',
+        content: `Supported: ${d.supportedStoneTypes.join(', ')}`,
+        color: '#ef4444',
+        distance: 0
+      }));
+    } else if (analysis.targetTable === 'DrillMission') {
+      const missions = await this.prisma.drillMission.findMany({
+        include: { mine: true, drill: true },
+        take: requestedLimit
+      });
+      entities = missions.map(m => ({
+        id: m.id,
+        name: `Mission: ${m.stoneType}`,
+        type: 'Mission',
+        content: `Date: ${m.date.toDateString()}, Mine: ${m.mine.name}, Drill: ${m.drill.name}`,
+        color: '#8b5cf6',
+        distance: 0
+      }));
     }
 
-    const contextText = areas.map((e, i) => `[Document ${i+1}]: Name: ${e.name}. Type: ${e.type}. Content: ${e.content} ${targetCity ? `(Distance: ${e.distance.toFixed(2)} km)` : ''}`).join('\n\n');
-    
-    // Yield sources to the client
-    yield { sources: areas, mode };
+    yield { sources: entities, mode };
 
-    if (isShowQuery) {
-      this.logger.log(`Show query detected, returning map confirmation.`);
-      const filterDesc = [
-        filters.color ? `צבע ${filters.color}` : '',
-        filters.type ? `סוג "${filters.type}"` : '',
-        filters.name ? `שם "${filters.name}"` : '',
-      ].filter(Boolean).join(', ');
-      const mapMsg = `מציג **${areas.length}** אזורים על המפה${filterDesc ? ` (${filterDesc})` : ''}.`;
-      yield { content: mapMsg };
-      return;
-    }
+    yield { status: 'מנסח תשובה...' };
 
-    yield { status: 'מכין תשובה...' };
+    const contextText = entities.map((e, i) => `[Item ${i+1}]: ${e.name} (${e.type}). Details: ${e.content}`).join('\n\n');
 
-    // 3. Construct prompt
-    const prompt = `אתה עוזר GIS מקצועי. המשתמש שואל: "${question}"
-על סמך המידע הגיאוגרפי הבא:
+    const prompt = `You are a Virtualization Expert for Rare Earth Materials. 
+The user is asking: "${question}"
 
+Current Database Context:
 ${contextText}
 
-הנחיות:
-1. ענה בעברית בצורה ישירה ותמציתית.
-2. אם יש נתוני מרחק (Distance), ציין אותם בתשובתך.
-3. אל תוסיף הקדמות מיותרות.
+Guidelines:
+1. Answer in Hebrew professionally and concisely.
+2. If the user asked for a count, provide it based on the results.
+3. If the user asked about locations, mention that they are displayed on the map.
+4. If no results were found, suggest what they can ask about (Mines, Clusters, Drills).
 
 Answer:`;
 
-    // 4. Stream response from local LLM
-    this.logger.log(`--- SENDING PROMPT TO LLM ---`);
-    this.logger.log(prompt);
-    this.logger.log(`--- END PROMPT ---`);
-
     const stream = await this.llm.stream(prompt);
-
-    let hasResponded = false;
     for await (const chunk of stream) {
-      if (chunk.content) {
-        if (!hasResponded) {
-          this.logger.log(`LLM started responding...`);
-          hasResponded = true;
-        }
-        yield { content: chunk.content as string };
-      }
-    }
-    
-    if (!hasResponded) {
-      this.logger.warn('Model returned an empty response!');
+      if (chunk.content) yield { content: chunk.content as string };
     }
   }
 }
