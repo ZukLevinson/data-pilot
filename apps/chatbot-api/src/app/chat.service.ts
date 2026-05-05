@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { ChatOpenAI, OpenAIEmbeddings } from '@langchain/openai';
+import { ChatStreamChunk } from '@org/shared/models';
 
 @Injectable()
 export class ChatService {
@@ -32,7 +33,7 @@ export class ChatService {
     });
   }
 
-  async *processChatStream(userId: string, question: string) {
+  async *processChatStream(userId: string, question: string): AsyncGenerator<ChatStreamChunk> {
     this.logger.log(`Streaming chat for user ${userId}: ${question}`);
     
     // 1. Generate embedding for the question
@@ -71,7 +72,7 @@ Answer:`;
     const stream = await this.llm.stream(prompt);
 
     for await (const chunk of stream) {
-      if (chunk.content) {
+      if (typeof chunk.content === 'string') {
         yield { data: chunk.content };
       }
     }

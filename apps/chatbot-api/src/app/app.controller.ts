@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Res } from '@nestjs/common';
 import { AppService } from './app.service';
 import { ChatService } from './chat.service';
 import { Response } from 'express';
+import { ChatRequest, AppConfig, ChatResponse } from '@org/shared/models';
 
 @Controller()
 export class AppController {
@@ -16,7 +17,7 @@ export class AppController {
   }
 
   @Get('config')
-  getConfig() {
+  getConfig(): AppConfig {
     return {
       modelName: this.chatService.modelName,
       embeddingModel: this.chatService.embeddingModel,
@@ -24,7 +25,7 @@ export class AppController {
   }
 
   @Post('chat')
-  async handleChat(@Body() body: { userId: string; question: string }) {
+  async handleChat(@Body() body: ChatRequest): Promise<ChatResponse> {
     if (!body.userId || !body.question) {
       return { error: 'userId and question are required.' };
     }
@@ -37,7 +38,7 @@ export class AppController {
 
   @Post('chat/stream')
   async streamChat(
-    @Body() body: { userId: string; question: string },
+    @Body() body: ChatRequest,
     @Res() res: Response
   ) {
     if (!body.userId || !body.question) {
