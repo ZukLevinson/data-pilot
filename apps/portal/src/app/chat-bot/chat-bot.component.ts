@@ -49,6 +49,7 @@ export class ChatBotComponent implements AfterViewInit, OnInit {
   isWaiting = signal(false);
   statusText = signal<string | null>(null);
   currentModel = signal<string | null>(null);
+  currentSources = signal<EntitySearchResult[]>([]);
 
   async ngOnInit() {
     if (isPlatformBrowser(this.platformId)) {
@@ -114,6 +115,12 @@ export class ChatBotComponent implements AfterViewInit, OnInit {
           this.messages.update(msgs => msgs.map(m => 
             m.id === botMessageId ? { ...m, sources: chunk.sources } : m
           ));
+          
+          if (chunk.mode === 'append') {
+            this.currentSources.update(existing => [...existing, ...chunk.sources!]);
+          } else {
+            this.currentSources.set(chunk.sources);
+          }
           continue;
         }
 

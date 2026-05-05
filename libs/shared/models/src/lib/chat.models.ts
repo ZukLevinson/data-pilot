@@ -23,6 +23,7 @@ export interface ChatStreamChunk {
   content?: string;
   status?: string;
   sources?: EntitySearchResult[];
+  mode?: 'replace' | 'append';
 }
 
 export interface AppConfig {

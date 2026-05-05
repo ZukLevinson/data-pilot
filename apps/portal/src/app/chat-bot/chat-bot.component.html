@@ -1,43 +1,42 @@
-<div class="chat-container">
-  <!-- Header -->
-  <div class="chat-header">
-    <div class="header-info">
-      <p-avatar icon="pi pi-sparkles" shape="circle" size="normal" [style]="{'background-color': '#dbeafe', 'color': '#2563eb'}"></p-avatar>
-      <div>
-        <div class="title-row">
-          <h2 class="title">Data Pilot</h2>
-          @if (currentModel()) {
-            <p-badge [value]="currentModel()!" severity="info" styleClass="model-badge"></p-badge>
-          }
+<div class="dashboard-container">
+  <!-- Left Side: Chat Interface (Command Center) -->
+  <div class="chat-sidebar">
+    <div class="chat-header">
+      <div class="header-info">
+        <p-avatar icon="pi pi-compass" shape="circle" size="normal" [style]="{'background-color': '#dbeafe', 'color': '#2563eb'}"></p-avatar>
+        <div>
+          <div class="title-row">
+            <h2 class="title">Data Pilot</h2>
+            @if (currentModel()) {
+              <p-badge [value]="currentModel()!" severity="info" styleClass="model-badge"></p-badge>
+            }
+          </div>
+          <p class="subtitle">GIS Command Center</p>
         </div>
-        <p class="subtitle">תמיד כאן כדי לעזור</p>
       </div>
     </div>
-  </div>
 
-  <!-- Messages -->
-  <div class="chat-messages">
-    @for (message of messages(); track message.id) {
-      <div class="message-wrapper" [class.user]="message.sender === 'user'">
-        <div class="message-bubble" [class.error]="message.isError">
-          <!-- Thinking Section -->
-          @if (message.thought) {
-            <div class="thought-process">
-              <div class="thought-header">
-                <i class="pi pi-sparkles"></i>
-                <span>Reasoning...</span>
+    <!-- Messages List -->
+    <div class="chat-messages" #scrollContainer>
+      @for (message of messages(); track message.id) {
+        <div class="message-wrapper" [class.user]="message.sender === 'user'">
+          <div class="message-bubble" [class.error]="message.isError">
+            <!-- Thinking Section -->
+            @if (message.thought) {
+              <div class="thought-process">
+                <div class="thought-header">
+                  <i class="pi pi-sparkles"></i>
+                  <span>Reasoning...</span>
+                </div>
+                <div class="thought-text">{{ message.thought }}</div>
               </div>
-              <div class="thought-text">{{ message.thought }}</div>
-            </div>
-          }
-          
-          <!-- Sources Section -->
-          @if (message.sources && message.sources.length > 0) {
-            <div class="sources-container">
-              <div class="sources-header">המקורות שנמצאו:</div>
-              <div class="sources-list">
+            }
+            
+            <!-- Sources Section (Compact Pills) -->
+            @if (message.sources && message.sources.length > 0) {
+              <div class="sources-pills">
                 @for (source of message.sources; track source.id) {
-                  <div class="source-card">
+                  <div class="source-pill">
                     <i [class]="'pi ' + (
                       source.type === 'point' ? 'pi-map-marker' : 
                       source.type === 'circle' ? 'pi-circle' : 
@@ -45,72 +44,77 @@
                       source.type === 'corridor' ? 'pi-arrows-h' : 
                       source.type === 'ellipse' ? 'pi-search' : 'pi-map'
                     )" [style.color]="source.color"></i>
-                    <span class="source-type">{{ source.name }}</span>
+                    <span class="source-name">{{ source.name }}</span>
                   </div>
                 }
               </div>
-            </div>
-          }
+            }
 
-          <!-- Actual Answer -->
-          @if (message.text) {
-            <div class="answer-text">{{ message.text }}</div>
-          }
-          
-          <!-- Typing Indicator or Status if no text and no thought yet -->
-          @if (!message.text && !message.thought && isWaiting()) {
-            <div class="typing-container">
-              @if (statusText()) {
-                <div class="status-indicator">
-                  <i class="pi pi-spin pi-spinner"></i>
-                  <span>{{ statusText() }}</span>
-                </div>
-              } @else {
-                <div class="typing-indicator">
-                  <span></span><span></span><span></span>
-                </div>
-              }
-            </div>
-          }
-        </div>
-        <div class="message-time">
-          {{ message.timestamp | date:'HH:mm' }}
-        </div>
-
-        <!-- External Map Widget -->
-        @if (message.sources && message.sources.length > 0) {
-          <div class="external-map-wrapper">
-            <app-map-widget [sources]="message.sources"></app-map-widget>
+            <!-- Actual Answer -->
+            @if (message.text) {
+              <div class="answer-text">{{ message.text }}</div>
+            }
+            
+            <!-- Status / Typing -->
+            @if (!message.text && !message.thought && isWaiting()) {
+              <div class="typing-container">
+                @if (statusText()) {
+                  <div class="status-indicator">
+                    <i class="pi pi-spin pi-spinner"></i>
+                    <span>{{ statusText() }}</span>
+                  </div>
+                } @else {
+                  <div class="typing-indicator">
+                    <span></span><span></span><span></span>
+                  </div>
+                }
+              </div>
+            }
           </div>
-        }
-      </div>
-    }
+          <div class="message-time">
+            {{ message.timestamp | date:'HH:mm' }}
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Input Area -->
+    <div class="chat-input-area">
+      <form (ngSubmit)="sendMessage()" class="input-form">
+        <textarea 
+          #messageInput
+          pInputTextarea
+          [autoResize]="true"
+          rows="1"
+          [ngModel]="inputText()" 
+          (ngModelChange)="inputText.set($event)" 
+          (keydown)="handleKeyPress($event)"
+          name="messageInput"
+          placeholder="שאל שאלה או הזן פקודת GIS..." 
+          autocomplete="off"
+          class="message-input"
+          [disabled]="isWaiting()"
+        ></textarea>
+        <p-button 
+          type="submit" 
+          icon="pi pi-send" 
+          size="large"
+          [disabled]="!inputText().trim() || isWaiting()" 
+          [rounded]="true" 
+          styleClass="send-button"
+        ></p-button>
+      </form>
+    </div>
   </div>
 
-  <!-- Input -->
-  <div class="chat-input-area">
-    <form (ngSubmit)="sendMessage()" class="input-form">
-      <textarea 
-        #messageInput
-        pInputTextarea
-        [autoResize]="true"
-        rows="1"
-        [ngModel]="inputText()" 
-        (ngModelChange)="inputText.set($event)" 
-        (keydown)="handleKeyPress($event)"
-        name="messageInput"
-        placeholder="הקלד את השאילתא שלך..." 
-        autocomplete="off"
-        class="message-input w-full"
-      ></textarea>
-      <p-button 
-        type="submit" 
-        icon="pi pi-send" 
-        size="large"
-        [disabled]="!inputText().trim()" 
-        [rounded]="true" 
-        styleClass="send-button"
-      ></p-button>
-    </form>
+  <!-- Right Side: Global Map View -->
+  <div class="map-view">
+    <app-map-widget [sources]="currentSources()"></app-map-widget>
+    
+    <!-- Legend Overlay (Optional, but looks premium) -->
+    <div class="map-overlay-info" *ngIf="currentSources().length > 0">
+      <div class="overlay-header">מציג {{ currentSources().length }} אזורים</div>
+      <div class="overlay-details">השאילתה האחרונה הופעלה על בסיס נתונים מרחבי.</div>
+    </div>
   </div>
 </div>

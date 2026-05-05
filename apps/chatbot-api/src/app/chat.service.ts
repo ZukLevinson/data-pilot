@@ -34,13 +34,64 @@ export class ChatService {
   }
 
   async *processChatStream(userId: string, question: string): AsyncGenerator<ChatStreamChunk> {
-    this.logger.log(`Streaming chat for user ${userId}: ${question}`);
-    
+    // Detect mode: 'replace' (default) vs 'append'
+    const isAddQuery = /add|keep|also|בנוסף|תתקדם|תשאיר|וכן|תצרף|תוסיף/i.test(question);
+    const mode: 'replace' | 'append' = isAddQuery ? 'append' : 'replace';
+
+    // 1. Extract potential filters (Name, Color, Type) using a quick LLM pass
+    let filters: { name?: string, type?: string, color?: string } = {};
+    try {
+      const filterPrompt = `Extract geographic filters from the question: "${question}".
+Return ONLY a JSON object: {"name": string, "type": string, "color": string}. 
+
+CRITICAL RULES:
+1. ONLY include a field if it is EXPLICITLY and LITERALLY mentioned in the question.
+2. If a property is not mentioned, DO NOT include it in the JSON at all (omit the key).
+3. "areas", "אזורים", or "ישויות" are GENERIC terms. DO NOT assign a "type" if these are the only terms used.
+4. NEVER guess "point" as a default type unless they literally say "points".
+5. If the user says "red areas", set color to "#ef4444" and leave "name" and "type" OUT.
+6. DO NOT guess the type if not mentioned.
+7. DO NOT use the question text as the "name" unless they say "named X".
+8. Be clinical and minimal.
+
+EXAMPLES:
+- "how many red areas" -> {"color": "#ef4444"}
+- "circles in Paris" -> {"type": "circle"}
+- "areas named France" -> {"name": "France"}
+- "blue polygons" -> {"color": "#3b82f6", "type": "polygon"}
+
+Colors: #ef4444 (red), #f97316 (orange), #f59e0b (yellow), #10b981 (green), #3b82f6 (blue), #6366f1 (indigo), #8b5cf6 (purple), #d946ef (pink).
+Types: point, circle, open polygon, closed polygon, corridor, ellipse.`;
+      
+      const filterRes = await this.llm.invoke(filterPrompt);
+      const match = filterRes.content.toString().match(/\{[\s\S]*\}/);
+      if (match) {
+        filters = JSON.parse(match[0]);
+        this.logger.log(`Extracted Filters: ${JSON.stringify(filters)}`);
+      }
+    } catch (e) {
+      this.logger.warn('Failed to extract filters, falling back to semantic only.');
+    }
+
     // 1. Detect if this is a general/quantitative question
     const isGeneralQuery = /count|how many|כמה|מספר|כמות/i.test(question);
     
-    // Detect if this is a "Show me" query (visual only)
-    const isShowQuery = /show|הצג|תראה|תציג/i.test(question) && !/count|how many|כמה/i.test(question);
+    // Type detection mapping for Hebrew/English
+    const typeMapping: Record<string, string> = {
+      'circle': 'circle', 'מעגל': 'circle', 'עיגול': 'circle',
+      'point': 'point', 'נקודה': 'point', 'נקודות': 'point',
+      'polygon': 'polygon', 'פוליגון': 'polygon', 'מצולע': 'polygon', 'מצולעים': 'polygon',
+      'corridor': 'corridor', 'מסדרון': 'corridor', 'פרוזדור': 'corridor',
+      'ellipse': 'ellipse', 'אליפסה': 'ellipse'
+    };
+
+    let targetType = null;
+    for (const key in typeMapping) {
+      if (question.toLowerCase().includes(key)) {
+        targetType = typeMapping[key];
+        break;
+      }
+    }
 
     // Spatial Resolver for major cities (Pilot)
     const cities: Record<string, [number, number]> = {
@@ -64,22 +115,65 @@ export class ChatService {
       }
     }
 
+    // Extract radius (default to 5km if near is mentioned but no radius)
+    let radiusKm = 5;
+    const radiusMatch = question.match(/(\d+)\s*(km|קילומטר|ק"מ)/i);
+    if (radiusMatch) {
+      radiusKm = parseInt(radiusMatch[1]);
+    }
+
     if (isGeneralQuery) {
-      const countRes = await this.prisma.$queryRaw<{ count: number }[]>`SELECT count(*)::int as count FROM "Area"`;
-      const totalCount = countRes[0]?.count ?? 0;
-      const prompt = `המשתמש שואל שאלה כללית על כמות הישויות או על המערכת. 
-נתון: ישנן ${totalCount} ישויות גיאוגרפיות במסד הנתונים.
-ענה למשתמש בעברית ובצורה תמציתית על השאלה: ${question}`;
+      let totalCount = 0;
+      let filteredCount = 0;
+      let spatialFilteredCount = 0;
       
-      yield { status: 'מכין תשובה...' };
+      const totalRes = await this.prisma.$queryRaw<{ count: number }[]>`SELECT count(*)::int as count FROM "Area"`;
+      totalCount = totalRes[0]?.count ?? 0;
+
+      // Build dynamic WHERE clause based on extracted filters
+      const whereClauses = ['1=1'];
+      if (filters.type) whereClauses.push(`type LIKE '%${filters.type}%'`);
+      if (filters.color) whereClauses.push(`color = '${filters.color}'`);
+      if (filters.name) whereClauses.push(`name ILIKE '%${filters.name}%'`);
+      const whereSql = whereClauses.join(' AND ');
+
+      const filteredRes = await this.prisma.$queryRawUnsafe<{ count: number }[]>(`SELECT count(*)::int as count FROM "Area" WHERE ${whereSql}`);
+      filteredCount = filteredRes[0]?.count ?? 0;
+
+      if (targetCity) {
+        const [lon, lat] = targetCity.coords;
+        const spatialRes = await this.prisma.$queryRawUnsafe<{ count: number }[]>(`
+          SELECT count(*)::int as count 
+          FROM "Area" a 
+          WHERE ${whereSql} AND ST_Distance(a.geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) <= ${radiusKm * 1000}
+        `);
+        spatialFilteredCount = spatialRes[0]?.count ?? 0;
+      }
+
+      const prompt = `המשתמש שואל שאלה כמותית על המערכת.
+נתון כללי: ישנם סה"כ ${totalCount} אזורים במסד הנתונים.
+${whereSql !== '1=1' ? `נתון מסונן (לפי הקריטריונים שצוינו): נמצאו ${filteredCount} אזורים מתאימים.` : ''}
+${targetCity ? `באזור ${targetCity.name} (רדיוס ${radiusKm} ק"מ), נמצאו ${spatialFilteredCount} אזורים.` : ''}
+
+ענה למשתמש בעברית ובצורה תמציתית ומדויקת על השאלה: ${question}
+השתמש בנתונים המספריים המדויקים שסופקו לעיל. אל תמציא פילטרים שלא הוזכרו בשאלה.`;
+      
+      yield { status: 'מחשב כמות מורכבת...' };
       const stream = await this.llm.stream(prompt);
       for await (const chunk of stream) {
-        if (typeof chunk.content === 'string' && chunk.content) {
-          yield { content: chunk.content };
-        }
+        if (chunk.content) yield { content: chunk.content as string };
       }
       return;
     }
+    // Detect if this is a "Show me" query (visual only)
+    const isShowQuery = /show|הצג|תראה|תציג/i.test(question) && !/count|how many|כמה/i.test(question);
+
+    // Build dynamic WHERE clause
+    let whereSql = '1=1';
+    if (filters.type) whereSql += ` AND type LIKE '%${filters.type}%'`;
+    if (filters.color) whereSql += ` AND color = '${filters.color}'`;
+    if (filters.name) whereSql += ` AND name ILIKE '%${filters.name}%'`;
+
     // 2. Query Postgres for closest areas
     let areas: EntitySearchResult[] = [];
     
@@ -87,30 +181,32 @@ export class ChatService {
       this.logger.log(`Performing Spatial Search for city: ${targetCity.name}`);
       const [lon, lat] = targetCity.coords;
       // Spatial KNN search using PostGIS <-> operator
-      areas = await this.prisma.$queryRaw<EntitySearchResult[]>`
+      areas = await this.prisma.$queryRawUnsafe<EntitySearchResult[]>(`
         SELECT a.id, a.name, a.content, a.type, a.color, ST_AsText(a.geom) as wkt, 
                ST_Distance(a.geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) / 1000 as distance
         FROM "Area" a
+        WHERE ${whereSql}
         ORDER BY a.geom <-> ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)
         LIMIT 5;
-      `;
+      `);
     } else {
       // Fallback to Semantic Vector Search
       const questionEmbedding = await this.embeddings.embedQuery(question);
       const vectorString = `[${questionEmbedding.join(',')}]`;
       
-      areas = await this.prisma.$queryRaw<EntitySearchResult[]>`
-        SELECT a.id, a.name, a.content, a.type, a.color, ST_AsText(a.geom) as wkt, a.embedding <=> ${vectorString}::vector as distance
+      areas = await this.prisma.$queryRawUnsafe<EntitySearchResult[]>(`
+        SELECT a.id, a.name, a.content, a.type, a.color, ST_AsText(a.geom) as wkt, a.embedding <=> '${vectorString}'::vector as distance
         FROM "Area" a
+        WHERE ${whereSql}
         ORDER BY distance ASC
         LIMIT 5;
-      `;
+      `);
     }
 
     const contextText = areas.map((e, i) => `[Document ${i+1}]: Name: ${e.name}. Type: ${e.type}. Content: ${e.content} ${targetCity ? `(Distance: ${e.distance.toFixed(2)} km)` : ''}`).join('\n\n');
     
     // Yield sources to the client
-    yield { sources: areas };
+    yield { sources: areas, mode };
 
     if (isShowQuery) {
       this.logger.log(`Show query detected, skipping LLM response.`);
