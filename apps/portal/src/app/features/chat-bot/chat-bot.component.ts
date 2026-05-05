@@ -2,7 +2,7 @@ import { Component, ElementRef, ViewChild, signal, inject, OnInit } from '@angul
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService } from '../../core/services/chat.service';
-import { SavedQuery, QueryPlan } from '@org/models';
+import { SavedQuery, QueryPlan, ClusterCondition } from '@org/models';
 import { Textarea } from 'primeng/textarea';
 import { Button } from 'primeng/button';
 import { Badge } from 'primeng/badge';
@@ -135,7 +135,7 @@ export class ChatBotComponent implements OnInit {
     return String(key).startsWith('count');
   }
 
-  getClusterConditions(plan: QueryPlan): unknown[] {
+  getClusterConditions(plan: QueryPlan): ClusterCondition[] {
     if (!plan.clusterConditions) return [];
     return Array.isArray(plan.clusterConditions) ? plan.clusterConditions : [plan.clusterConditions];
   }
