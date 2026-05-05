@@ -36,23 +36,75 @@ export class ChatService {
   async *processChatStream(userId: string, question: string): AsyncGenerator<ChatStreamChunk> {
     this.logger.log(`Streaming chat for user ${userId}: ${question}`);
     
-    yield { status: 'מנתח את השאלה...' };
+    // 1. Detect if this is a general/quantitative question to avoid irrelevant RAG
+    const isGeneralQuery = /count|how many|כמה|מספר|כמות/i.test(question);
     
-    // 1. Generate embedding for the question
-    const questionEmbedding = await this.embeddings.embedQuery(question);
-    const vectorString = `[${questionEmbedding.join(',')}]`;
+    // Spatial Resolver for major cities (Pilot)
+    const cities: Record<string, [number, number]> = {
+      'tel aviv': [34.7818, 32.0853],
+      'תל אביב': [34.7818, 32.0853],
+      'jerusalem': [35.2137, 31.7683],
+      'ירושלים': [35.2137, 31.7683],
+      'haifa': [34.9896, 32.7940],
+      'חיפה': [34.9896, 32.7940],
+      'paris': [2.3522, 48.8566],
+      'פריז': [2.3522, 48.8566],
+      'marseille': [5.3698, 43.2965],
+      'מרסיי': [5.3698, 43.2965],
+    };
 
-    yield { status: 'מחפש במסמכים רלוונטיים...' };
+    let targetCity = null;
+    for (const city in cities) {
+      if (question.toLowerCase().includes(city)) {
+        targetCity = { name: city, coords: cities[city] };
+        break;
+      }
+    }
 
-    // 2. Query Postgres for closest vectors (Semantic Search)
-    const areas = await this.prisma.$queryRaw<EntitySearchResult[]>`
-      SELECT a.id, a.content, a.type, ST_AsText(a.geom) as wkt, a.embedding <=> ${vectorString}::vector as distance
-      FROM "Area" a
-      ORDER BY distance ASC
-      LIMIT 5;
-    `;
+    if (isGeneralQuery) {
+      const countRes = await this.prisma.$queryRaw<{ count: number }[]>`SELECT count(*)::int as count FROM "Area"`;
+      const totalCount = countRes[0]?.count ?? 0;
+      const prompt = `המשתמש שואל שאלה כללית על כמות הישויות או על המערכת. 
+נתון: ישנן ${totalCount} ישויות גיאוגרפיות במסד הנתונים.
+ענה למשתמש בעברית ובצורה תמציתית על השאלה: ${question}`;
+      
+      yield { status: 'מכין תשובה...' };
+      const stream = await this.llm.stream(prompt);
+      for await (const chunk of stream) {
+        if (typeof chunk.content === 'string' && chunk.content) {
+          yield { content: chunk.content };
+        }
+      }
+      return;
+    }
+    // 2. Query Postgres for closest areas
+    let areas: EntitySearchResult[] = [];
+    
+    if (targetCity) {
+      this.logger.log(`Performing Spatial Search for city: ${targetCity.name}`);
+      const [lon, lat] = targetCity.coords;
+      // Spatial KNN search using PostGIS <-> operator
+      areas = await this.prisma.$queryRaw<EntitySearchResult[]>`
+        SELECT a.id, a.content, a.type, ST_AsText(a.geom) as wkt, 
+               ST_Distance(a.geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) / 1000 as distance
+        FROM "Area" a
+        ORDER BY a.geom <-> ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)
+        LIMIT 5;
+      `;
+    } else {
+      // Fallback to Semantic Vector Search
+      const questionEmbedding = await this.embeddings.embedQuery(question);
+      const vectorString = `[${questionEmbedding.join(',')}]`;
+      
+      areas = await this.prisma.$queryRaw<EntitySearchResult[]>`
+        SELECT a.id, a.content, a.type, ST_AsText(a.geom) as wkt, a.embedding <=> ${vectorString}::vector as distance
+        FROM "Area" a
+        ORDER BY distance ASC
+        LIMIT 5;
+      `;
+    }
 
-    const contextText = areas.map((e, i) => `[Document ${i+1}]: ${e.content}`).join('\n\n');
+    const contextText = areas.map((e, i) => `[Document ${i+1}]: ${e.content} ${targetCity ? `(Distance: ${e.distance.toFixed(2)} km)` : ''}`).join('\n\n');
     
     // Yield sources to the client
     yield { sources: areas };
@@ -60,33 +112,33 @@ export class ChatService {
     yield { status: 'מכין תשובה...' };
 
     // 3. Construct prompt
-    const prompt = `אתה עוזר מומחה למערכות מידע גיאוגרפיות (GIS).
-במסד הנתונים קיימות ישויות גיאוגרפיות מאזורים שונים בעולם, כולל ישראל, צרפת והים התיכון.
+    const prompt = `אתה עוזר GIS מקצועי. המשתמש שואל: "${question}"
+על סמך המידע הגיאוגרפי הבא:
 
-להלן מידע על ישויות רלוונטיות שנמצאו עבור השאלה שלך:
 ${contextText}
 
-שאלה: ${question}
-
 הנחיות:
-1. חשוב על התשובה צעד אחר צעד בתוך תגיות <think>. שים לב למיקום הגיאוגרפי (ישראל/צרפת/ים).
-2. ענה בעברית באופן תמציתי ומקצועי.
-3. אם המשתמש שואל על אזור ספציפי (כמו "בצרפת" או "בים"), התמקד בישויות שנמצאות שם.
+1. ענה בעברית בצורה ישירה ותמציתית.
+2. אם יש נתוני מרחק (Distance), ציין אותם בתשובתך.
+3. אל תוסיף הקדמות מיותרות.
 
 Answer:`;
 
-    // 4. Stream response from local Qwen
-    this.logger.log(`Prompt: ${prompt}`);
+    // 4. Stream response from local LLM
+    this.logger.log(`--- SENDING PROMPT TO LLM ---`);
+    this.logger.log(prompt);
+    this.logger.log(`--- END PROMPT ---`);
+
     const stream = await this.llm.stream(prompt);
 
     let hasResponded = false;
     for await (const chunk of stream) {
-      if (typeof chunk.content === 'string' && chunk.content) {
+      if (chunk.content) {
         if (!hasResponded) {
-          this.logger.log(`Model started responding...`);
+          this.logger.log(`LLM started responding...`);
           hasResponded = true;
         }
-        yield { content: chunk.content };
+        yield { content: chunk.content as string };
       }
     }
     
