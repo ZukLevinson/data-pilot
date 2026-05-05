@@ -15,7 +15,8 @@ export interface ChatRequest {
 }
 
 export interface ChatResponse {
-  reply: string;
+  reply?: string;
+  error?: string;
 }
 
 export interface ChatStreamChunk {
