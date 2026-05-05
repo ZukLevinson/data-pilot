@@ -3,6 +3,8 @@ import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { EntitySearchResult } from '@org/models';
 import { parse } from 'wellknown';
 
+import { Map, GeoJSON, LatLngExpression } from 'leaflet';
+
 @Component({
   selector: 'app-map-widget',
   standalone: true,
@@ -24,9 +26,9 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
   @ViewChild('mapContainer') mapContainer!: ElementRef;
 
   private platformId = inject(PLATFORM_ID);
-  private map?: any;
-  private L?: any;
-  private geoJsonLayer?: any;
+  private map?: Map;
+  private L?: typeof import('leaflet');
+  private geoJsonLayer?: GeoJSON;
 
   ngAfterViewInit() {
     if (isPlatformBrowser(this.platformId)) {
@@ -76,12 +78,22 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
       this.map.removeLayer(this.geoJsonLayer);
     }
 
-    const geoJsonFeatures: any[] = [];
+    const geoJsonFeatures: {
+      type: 'Feature',
+      properties: {
+        id: string;
+        name: string;
+        type: string;
+        color: string;
+        content: string;
+      },
+      geometry: unknown
+    }[] = [];
 
     this.sources.forEach(source => {
       if (source.wkt) {
         try {
-          const geoJson: any = parse(source.wkt);
+          const geoJson = parse(source.wkt);
           if (geoJson) {
             geoJsonFeatures.push({
               type: 'Feature',
@@ -105,9 +117,11 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
 
     if (geoJsonFeatures.length > 0) {
       console.log(`Adding ${geoJsonFeatures.length} features to map`);
-      this.geoJsonLayer = L.geoJSON(geoJsonFeatures as any, {
-        style: (feature: any) => {
-          const type = feature.properties.type;
+      this.geoJsonLayer = L.geoJSON(geoJsonFeatures as unknown as Parameters<typeof L.geoJSON>[0], {
+        style: (feature: unknown) => {
+          const f = feature as { properties: { type: string; color?: string } };
+          const properties = f.properties;
+          const type = properties.type;
           if (type === 'Mine') {
             return {
               color: '#1e3a8a',
@@ -127,22 +141,24 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
             };
           }
           return {
-            color: feature.properties.color || '#3b82f6',
+            color: properties.color || '#3b82f6',
             weight: 1,
             opacity: 0.6,
-            fillColor: feature.properties.color || '#3b82f6',
+            fillColor: properties.color || '#3b82f6',
             fillOpacity: 0.2,
           };
         },
-        pointToLayer: (feature: any, latlng: any) => {
-          const type = feature.properties.type;
+        pointToLayer: (feature: unknown, latlng: { lat: number; lng: number }) => {
+          const f = feature as { properties: { type: string; color?: string } };
+          const properties = f.properties;
+          const type = properties.type;
           
           if (type === 'Cluster') {
             const icon = L.divIcon({
               className: 'cluster-icon',
               html: `
                 <div style="
-                  background-color: ${feature.properties.color || '#f59e0b'};
+                  background-color: ${properties.color || '#f59e0b'};
                   color: white;
                   width: 24px;
                   height: 24px;
@@ -159,12 +175,12 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
               iconSize: [24, 24],
               iconAnchor: [12, 12]
             });
-            return L.marker(latlng, { icon });
+            return L.marker(latlng as LatLngExpression, { icon });
           }
 
-          return L.circleMarker(latlng, {
+          return L.circleMarker(latlng as LatLngExpression, {
             radius: 8,
-            fillColor: feature.properties.color || '#3b82f6',
+            fillColor: properties.color || '#3b82f6',
             color: '#fff',
             weight: 2,
             opacity: 1,

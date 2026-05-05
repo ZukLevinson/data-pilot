@@ -2,7 +2,7 @@ export type MessageSender = 'user' | 'bot' | 'system';
 
 export interface QueryCondition {
   operator: 'contains' | 'notContains' | 'gt' | 'lt' | 'after' | 'before' | 'equals';
-  value: any;
+  value: string | number | boolean;
 }
 
 export interface ClusterCondition {
@@ -19,7 +19,7 @@ export interface Aggregation {
 export interface QueryPlan {
   target: 'Mine' | 'Cluster' | 'Drill' | 'DrillMission';
   limit?: number;
-  conditions?: Record<string, QueryCondition | any>;
+  conditions?: Record<string, QueryCondition | string | number | boolean>;
   mineConditions?: Record<string, QueryCondition>;
   clusterConditions?: ClusterCondition[];
   aggregations?: Aggregation[];

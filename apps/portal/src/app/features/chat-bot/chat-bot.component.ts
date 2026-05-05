@@ -2,7 +2,7 @@ import { Component, ElementRef, ViewChild, signal, inject, OnInit } from '@angul
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService } from '../../core/services/chat.service';
-import { SavedQuery } from '@org/models';
+import { SavedQuery, QueryPlan } from '@org/models';
 import { Textarea } from 'primeng/textarea';
 import { Button } from 'primeng/button';
 import { Badge } from 'primeng/badge';
@@ -78,7 +78,7 @@ export class ChatBotComponent implements OnInit {
     }, 100);
   }
 
-  getReadableField(field: any): string {
+  getReadableField(field: string): string {
     const fieldMap: Record<string, string> = {
       'stoneType': 'סוג חומר',
       'quantity': 'כמות',
@@ -90,7 +90,7 @@ export class ChatBotComponent implements OnInit {
     return fieldMap[field] || field;
   }
 
-  getReadableOperator(op: any): string {
+  getReadableOperator(op: string): string {
     const opMap: Record<string, string> = {
       'contains': 'מכיל',
       'notContains': 'לא מכיל',
@@ -104,7 +104,7 @@ export class ChatBotComponent implements OnInit {
     return opMap[op] || op;
   }
 
-  getReadableTarget(target: any): string {
+  getReadableTarget(target: string): string {
     const targetMap: Record<string, string> = {
       'Mine': 'מכרה',
       'Cluster': 'מקבץ',
@@ -114,7 +114,7 @@ export class ChatBotComponent implements OnInit {
     return targetMap[target] || target;
   }
 
-  getReadableAggType(key: any): string {
+  getReadableAggType(key: string): string {
     const parts = key.split('_');
     const type = parts[0];
     const field = parts[1];
@@ -131,11 +131,11 @@ export class ChatBotComponent implements OnInit {
     return `${typeMap[type] || type} ${fieldLabel}`;
   }
 
-  isCountAgg(key: any): boolean {
+  isCountAgg(key: string): boolean {
     return String(key).startsWith('count');
   }
 
-  getClusterConditions(plan: any): any[] {
+  getClusterConditions(plan: QueryPlan): unknown[] {
     if (!plan.clusterConditions) return [];
     return Array.isArray(plan.clusterConditions) ? plan.clusterConditions : [plan.clusterConditions];
   }

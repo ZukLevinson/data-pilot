@@ -5,12 +5,28 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ChatService } from '../../core/services/chat.service';
 import { of } from 'rxjs';
-import { signal } from '@angular/core';
+import { signal, WritableSignal } from '@angular/core';
+import { Observable } from 'rxjs';
+import { ChatMessage, EntitySearchResult, QueryPlan, SavedQuery, AppConfig } from '@org/models';
+
+interface MockChatService {
+  messages: WritableSignal<ChatMessage[]>;
+  currentSources: WritableSignal<EntitySearchResult[]>;
+  currentQueryPlan: WritableSignal<QueryPlan | null>;
+  currentModel: WritableSignal<string | null>;
+  statusText: WritableSignal<string | null>;
+  history: WritableSignal<SavedQuery[]>;
+  isWaiting: WritableSignal<boolean>;
+  showHistory: WritableSignal<boolean>;
+  getConfig: () => Observable<AppConfig>;
+  loadHistory: () => void;
+  sendMessage: (t: string) => Promise<void>;
+}
 
 describe('ChatBotComponent', () => {
   let component: ChatBotComponent;
   let fixture: ComponentFixture<ChatBotComponent>;
-  let mockChatService: any;
+  let mockChatService: MockChatService;
 
   beforeEach(async () => {
     mockChatService = {

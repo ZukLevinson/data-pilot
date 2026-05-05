@@ -16,7 +16,7 @@ async function main() {
     console.log('Mines:', mines.map(m => m.name));
     
     const ids = mines.map(m => m.id);
-    const wkts = await prisma.$queryRawUnsafe<any[]>(
+    const wkts = await prisma.$queryRawUnsafe<{id: string, wkt: string}[]>(
       `SELECT id, ST_AsText(geom) as wkt FROM "Mine" WHERE id::text IN (${ids.map(id => `'${id}'`).join(',')})`
     );
     console.log('WKTs:', wkts);
