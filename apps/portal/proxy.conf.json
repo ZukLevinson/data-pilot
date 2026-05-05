@@ -2,5 +2,9 @@
   "/@org/api": {
     "target": "http://localhost:3333",
     "secure": false
+  },
+  "/chatbot-api-api": {
+    "target": "http://localhost:3000",
+    "secure": false
   }
 }
