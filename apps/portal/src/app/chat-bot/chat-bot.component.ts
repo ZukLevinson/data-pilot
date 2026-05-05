@@ -1,10 +1,12 @@
-import { Component, ChangeDetectionStrategy, signal, inject, ChangeDetectorRef, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { Component, ChangeDetectionStrategy, signal, inject, ChangeDetectorRef, ViewChild, ElementRef, AfterViewInit, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { TextareaModule } from 'primeng/textarea';
 import { AvatarModule } from 'primeng/avatar';
+import { BadgeModule } from 'primeng/badge';
 import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 
 interface Message {
   id: number;
@@ -18,12 +20,12 @@ interface Message {
 @Component({
   selector: 'app-chat-bot',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, TextareaModule, AvatarModule],
+  imports: [CommonModule, FormsModule, ButtonModule, TextareaModule, AvatarModule, BadgeModule],
   templateUrl: './chat-bot.component.html',
   styleUrls: ['./chat-bot.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ChatBotComponent implements AfterViewInit {
+export class ChatBotComponent implements AfterViewInit, OnInit {
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
 
@@ -40,6 +42,17 @@ export class ChatBotComponent implements AfterViewInit {
   
   inputText = signal('');
   isWaiting = signal(false);
+  currentModel = signal<string | null>(null);
+
+  async ngOnInit() {
+    try {
+      const config = await firstValueFrom(this.http.get<{ modelName: string }>('/api/config'));
+      this.currentModel.set(config.modelName);
+      this.cdr.detectChanges();
+    } catch (err) {
+      console.error('Failed to fetch model config:', err);
+    }
+  }
 
   ngAfterViewInit() {
     this.focusInput();

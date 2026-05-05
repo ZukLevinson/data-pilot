@@ -4,7 +4,12 @@
     <div class="header-info">
       <p-avatar icon="pi pi-sparkles" shape="circle" size="normal" [style]="{'background-color': '#dbeafe', 'color': '#2563eb'}"></p-avatar>
       <div>
-        <h2 class="title">Data Pilot</h2>
+        <div class="title-row">
+          <h2 class="title">Data Pilot</h2>
+          @if (currentModel()) {
+            <p-badge [value]="currentModel()!" severity="info" styleClass="model-badge"></p-badge>
+          }
+        </div>
         <p class="subtitle">תמיד כאן כדי לעזור</p>
       </div>
     </div>

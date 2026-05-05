@@ -8,19 +8,25 @@ export class ChatService {
   private llm: ChatOpenAI;
   private embeddings: OpenAIEmbeddings;
 
+  public readonly modelName: string;
+  public readonly embeddingModel: string;
+
   constructor(private prisma: PrismaService) {
     // URL to your local Ollama or vLLM instance
     const baseURL = process.env.LOCAL_LLM_URL || 'http://localhost:11434/v1';
     
+    this.modelName = process.env['LOCAL_LLM_MODEL'] || 'qwen3-coder';
+    this.embeddingModel = process.env['LOCAL_EMBEDDING_MODEL'] || 'nomic-embed-text';
+
     this.llm = new ChatOpenAI({
-      modelName: process.env['LOCAL_LLM_MODEL'] || 'qwen3-coder',
+      modelName: this.modelName,
       apiKey: 'local-key', // LangChain now prefers apiKey over openAIApiKey
       configuration: { baseURL },
       temperature: 0.1,
     });
 
     this.embeddings = new OpenAIEmbeddings({
-      modelName: process.env['LOCAL_EMBEDDING_MODEL'] || 'nomic-embed-text',
+      modelName: this.embeddingModel,
       apiKey: 'local-key',
       configuration: { baseURL },
     });

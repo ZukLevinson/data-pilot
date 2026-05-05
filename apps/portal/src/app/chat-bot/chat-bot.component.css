@@ -25,17 +25,33 @@
   gap: 0.75rem;
 }
 
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .title {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 1.1rem;
   font-weight: 600;
-  color: #1e3a8a; /* Deep blue */
-  line-height: 1.2;
+  color: #1e293b;
+}
+
+.model-badge {
+  font-size: 0.65rem !important;
+  font-weight: 500;
+  background-color: #eff6ff !important;
+  color: #3b82f6 !important;
+  border: 1px solid #dbeafe !important;
+  height: 1.25rem !important;
+  min-width: 1.25rem !important;
+  padding: 0 0.4rem !important;
 }
 
 .subtitle {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   color: #64748b;
   margin-top: 0.125rem;
 }

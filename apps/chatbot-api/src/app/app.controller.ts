@@ -15,6 +15,14 @@ export class AppController {
     return this.appService.getData();
   }
 
+  @Get('config')
+  getConfig() {
+    return {
+      modelName: this.chatService.modelName,
+      embeddingModel: this.chatService.embeddingModel,
+    };
+  }
+
   @Post('chat')
   async handleChat(@Body() body: { userId: string; question: string }) {
     if (!body.userId || !body.question) {

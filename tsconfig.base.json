@@ -15,15 +15,7 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@org/api/products": ["libs/api/products/src/index.ts"],
       "@org/models": ["libs/shared/models/src/index.ts"],
-      "@org/portal/data": ["libs/portal/data/src/index.ts"],
-      "@org/portal/feature-product-detail": [
-        "libs/portal/feature-product-detail/src/index.ts"
-      ],
-      "@org/portal/feature-products": [
-        "libs/portal/feature-products/src/index.ts"
-      ],
       "@org/portal/shared-ui": ["libs/portal/shared-ui/src/index.ts"]
     }
   },
