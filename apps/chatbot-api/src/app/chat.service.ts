@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { ChatOpenAI, OpenAIEmbeddings } from '@langchain/openai';
-import { ChatStreamChunk } from '@org/models';
+import { ChatStreamChunk, EntitySearchResult } from '@org/models';
 
 @Injectable()
 export class ChatService {
@@ -41,7 +41,7 @@ export class ChatService {
     const vectorString = `[${questionEmbedding.join(',')}]`;
 
     // 2. Query Postgres for closest vectors
-    const allowedEntities: any[] = await this.prisma.$queryRaw`
+    const allowedEntities = await this.prisma.$queryRaw<EntitySearchResult[]>`
       SELECT e.id, e.content, e.type, e.embedding <=> ${vectorString}::vector as distance
       FROM "Entity" e
       LEFT JOIN "EntityTag" et ON e.id = et.entity_id

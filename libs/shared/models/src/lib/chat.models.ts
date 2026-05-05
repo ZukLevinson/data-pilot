@@ -27,3 +27,10 @@ export interface AppConfig {
   modelName: string;
   embeddingModel: string;
 }
+
+export interface EntitySearchResult {
+  id: string;
+  content: string;
+  type: string;
+  distance: number;
+}
