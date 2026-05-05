@@ -21,7 +21,10 @@
       <p-scrollPanel [style]="{ width: '100%', height: 'calc(100vh - 100px)' }">
         <div class="history-list">
           @for (item of chatService.history(); track item.id) {
-            <div class="history-item" (click)="selectHistory(item); chatService.showHistory.set(false)">
+            <div class="history-item" 
+                 tabindex="0"
+                 (click)="selectHistory(item); chatService.showHistory.set(false)"
+                 (keydown.enter)="selectHistory(item); chatService.showHistory.set(false)">
               <div class="history-header">
                 <i class="pi pi-search"></i>
                 <span class="history-name">{{ item.name }}</span>
@@ -183,7 +186,7 @@
             }
             
             <!-- Status / Thinking / Typing -->
-            @if (!message.text && isWaiting()) {
+            @if (!message.text && chatService.isWaiting()) {
               <div class="typing-container">
                 @if (message.thought) {
                   <!-- Live thinking stream -->
@@ -194,10 +197,10 @@
                     </div>
                     <div class="thinking-text">{{ message.thought }}</div>
                   </div>
-                } @else if (statusText()) {
+                } @else if (chatService.statusText()) {
                   <div class="status-indicator">
                     <i class="pi pi-spin pi-spinner"></i>
-                    <span>{{ statusText() }}</span>
+                    <span>{{ chatService.statusText() }}</span>
                   </div>
                 } @else {
                   <div class="typing-indicator">
@@ -229,14 +232,13 @@
           placeholder="שאל שאלה או הזן פקודת GIS..." 
           autocomplete="off"
           class="message-input"
-          [disabled]="isWaiting()"
-          autofocus
+          [disabled]="chatService.isWaiting()"
         ></textarea>
         <p-button 
           type="submit" 
           icon="pi pi-send" 
           size="large"
-          [disabled]="!inputText().trim() || isWaiting()" 
+          [disabled]="!inputText().trim() || chatService.isWaiting()" 
           [rounded]="true" 
           styleClass="send-button"
         ></p-button>
@@ -246,12 +248,12 @@
 
   <!-- Right Side: Global Map View -->
   <div class="map-view">
-    <app-map-widget [sources]="currentSources()"></app-map-widget>
+    <app-map-widget [sources]="chatService.currentSources()"></app-map-widget>
     
     <!-- Legend Overlay (Optional, but looks premium) -->
-    @if (currentSources().length > 0) {
+    @if (chatService.currentSources().length > 0) {
       <div class="map-overlay-info">
-        <div class="overlay-header">מציג {{ currentSources().length }} אזורים</div>
+        <div class="overlay-header">מציג {{ chatService.currentSources().length }} אזורים</div>
         <div class="overlay-details">השאילתה האחרונה הופעלה על בסיס נתונים מרחבי.</div>
       </div>
     }

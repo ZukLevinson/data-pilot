@@ -2,8 +2,6 @@ import { Component, ElementRef, ViewChild, signal, inject, OnInit } from '@angul
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService } from '../../core/services/chat.service';
-import { ChatMessage, EntitySearchResult } from '@org/models';
-import { helloMessage } from '@org/portal/shared-ui';
 import { Textarea } from 'primeng/textarea';
 import { Button } from 'primeng/button';
 import { Badge } from 'primeng/badge';
@@ -13,7 +11,6 @@ import { Drawer } from 'primeng/drawer';
 import { ScrollPanel } from 'primeng/scrollpanel';
 import { MapWidgetComponent } from '../../shared/components/map-widget/map-widget.component';
 import { MarkdownPipe } from '../../shared/pipes/markdown.pipe';
-import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-chat-bot',

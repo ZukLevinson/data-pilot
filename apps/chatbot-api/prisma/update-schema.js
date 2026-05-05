@@ -4,7 +4,7 @@ const path = require('path');
 
 // Load .env
 const envPath = path.join(__dirname, 'apps/chatbot-api/.env');
-let env = {};
+const env = {};
 try {
   const envFile = fs.readFileSync(envPath, 'utf8');
   envFile.split('\n').forEach(line => {
@@ -14,7 +14,9 @@ try {
       env[key.trim()] = value.trim().replace(/^"|"$/g, '');
     }
   });
-} catch (e) {}
+} catch (e) {
+  console.log('No .env found, using default connection');
+}
 
 async function updateSchema() {
   const client = new Client({ connectionString: env.DATABASE_URL || 'postgresql://postgres:mysecretpassword@localhost:5433/postgres' });

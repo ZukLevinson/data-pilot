@@ -1,7 +1,6 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { AppConfig, ChatMessage, ChatRequest, ChatStreamChunk, EntitySearchResult } from '@org/models';
-import { firstValueFrom } from 'rxjs';
 
 import { helloMessage } from '@org/portal/shared-ui';
 
@@ -26,6 +25,10 @@ export class ChatService {
 
   getConfig() {
     return this.http.get<AppConfig>('/api/chat/config');
+  }
+
+  loadHistory() {
+    this.http.get<any[]>('/api/chat/history').subscribe(h => this.history.set(h));
   }
 
   async sendMessage(text: string) {

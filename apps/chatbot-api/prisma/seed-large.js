@@ -6,7 +6,7 @@ const path = require('path');
 
 // Load .env
 const envPath = path.join(__dirname, 'apps/chatbot-api/.env');
-let env = {};
+const env = {};
 try {
   const envFile = fs.readFileSync(envPath, 'utf8');
   envFile.split('\n').forEach(line => {
@@ -16,7 +16,9 @@ try {
       env[key.trim()] = value.trim().replace(/^"|"$/g, '');
     }
   });
-} catch (e) {}
+} catch (e) {
+  console.log('No .env found, using defaults');
+}
 
 const TYPES = ['point', 'circle', 'open polygon', 'closed polygon', 'corridor', 'ellipse'];
 const REGIONS = [
@@ -73,8 +75,8 @@ async function seed() {
   console.log(`Reseeding ${TOTAL_ROWS} rows with name and color...`);
 
   for (let i = 0; i < TOTAL_ROWS; i += BATCH_SIZE) {
-    let values = [];
-    let params = [];
+    const values = [];
+    const params = [];
     
     for (let j = 0; j < BATCH_SIZE && (i + j) < TOTAL_ROWS; j++) {
       const type = TYPES[Math.floor(Math.random() * TYPES.length)];
