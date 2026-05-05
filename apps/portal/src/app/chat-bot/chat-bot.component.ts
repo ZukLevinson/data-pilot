@@ -20,10 +20,12 @@ interface Message {
   isError?: boolean;
 }
 
+import { MapWidgetComponent } from './map-widget/map-widget.component';
+
 @Component({
   selector: 'app-chat-bot',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, TextareaModule, AvatarModule, BadgeModule],
+  imports: [CommonModule, FormsModule, ButtonModule, TextareaModule, AvatarModule, BadgeModule, MapWidgetComponent],
   templateUrl: './chat-bot.component.html',
   styleUrls: ['./chat-bot.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

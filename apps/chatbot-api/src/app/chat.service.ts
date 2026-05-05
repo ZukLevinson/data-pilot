@@ -46,7 +46,7 @@ export class ChatService {
 
     // 2. Query Postgres for closest vectors (Semantic Search)
     const areas = await this.prisma.$queryRaw<EntitySearchResult[]>`
-      SELECT a.id, a.content, a.type, a.embedding <=> ${vectorString}::vector as distance
+      SELECT a.id, a.content, a.type, ST_AsText(a.geom) as wkt, a.embedding <=> ${vectorString}::vector as distance
       FROM "Area" a
       ORDER BY distance ASC
       LIMIT 5;
@@ -60,16 +60,18 @@ export class ChatService {
     yield { status: 'מכין תשובה...' };
 
     // 3. Construct prompt
-    const prompt = `אתה עוזר מומחה למערכות מידע גיאוגרפיות.
-ענה על השאלה בצורה תמציתית, עניינית ומקצועית על סמך המידע הבא:
+    const prompt = `אתה עוזר מומחה למערכות מידע גיאוגרפיות (GIS).
+במסד הנתונים קיימות ישויות גיאוגרפיות מאזורים שונים בעולם, כולל ישראל, צרפת והים התיכון.
 
+להלן מידע על ישויות רלוונטיות שנמצאו עבור השאלה שלך:
 ${contextText}
 
 שאלה: ${question}
 
 הנחיות:
-1. חשוב על התשובה צעד אחר צעד בתוך תגיות <think>.
-2. ענה בעברית באופן קצר וממוקד. אל תרחיב מעבר לנדרש.
+1. חשוב על התשובה צעד אחר צעד בתוך תגיות <think>. שים לב למיקום הגיאוגרפי (ישראל/צרפת/ים).
+2. ענה בעברית באופן תמציתי ומקצועי.
+3. אם המשתמש שואל על אזור ספציפי (כמו "בצרפת" או "בים"), התמקד בישויות שנמצאות שם.
 
 Answer:`;
 

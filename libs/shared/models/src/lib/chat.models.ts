@@ -35,4 +35,5 @@ export interface EntitySearchResult {
   content: string;
   type: string;
   distance: number;
+  wkt?: string;
 }
