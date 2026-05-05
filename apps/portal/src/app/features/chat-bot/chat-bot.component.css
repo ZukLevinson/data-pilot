@@ -415,6 +415,8 @@ app-map-widget {
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
+}
+
 :host ::ng-deep .target-chip {
   background: #dbeafe !important;
   color: #1e40af !important;
