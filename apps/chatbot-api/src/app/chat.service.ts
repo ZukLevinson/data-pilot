@@ -36,9 +36,12 @@ export class ChatService {
   async *processChatStream(userId: string, question: string): AsyncGenerator<ChatStreamChunk> {
     this.logger.log(`Streaming chat for user ${userId}: ${question}`);
     
-    // 1. Detect if this is a general/quantitative question to avoid irrelevant RAG
+    // 1. Detect if this is a general/quantitative question
     const isGeneralQuery = /count|how many|כמה|מספר|כמות/i.test(question);
     
+    // Detect if this is a "Show me" query (visual only)
+    const isShowQuery = /show|הצג|תראה|תציג/i.test(question) && !/count|how many|כמה/i.test(question);
+
     // Spatial Resolver for major cities (Pilot)
     const cities: Record<string, [number, number]> = {
       'tel aviv': [34.7818, 32.0853],
@@ -85,7 +88,7 @@ export class ChatService {
       const [lon, lat] = targetCity.coords;
       // Spatial KNN search using PostGIS <-> operator
       areas = await this.prisma.$queryRaw<EntitySearchResult[]>`
-        SELECT a.id, a.content, a.type, ST_AsText(a.geom) as wkt, 
+        SELECT a.id, a.name, a.content, a.type, a.color, ST_AsText(a.geom) as wkt, 
                ST_Distance(a.geom::geography, ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography) / 1000 as distance
         FROM "Area" a
         ORDER BY a.geom <-> ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)
@@ -97,17 +100,22 @@ export class ChatService {
       const vectorString = `[${questionEmbedding.join(',')}]`;
       
       areas = await this.prisma.$queryRaw<EntitySearchResult[]>`
-        SELECT a.id, a.content, a.type, ST_AsText(a.geom) as wkt, a.embedding <=> ${vectorString}::vector as distance
+        SELECT a.id, a.name, a.content, a.type, a.color, ST_AsText(a.geom) as wkt, a.embedding <=> ${vectorString}::vector as distance
         FROM "Area" a
         ORDER BY distance ASC
         LIMIT 5;
       `;
     }
 
-    const contextText = areas.map((e, i) => `[Document ${i+1}]: ${e.content} ${targetCity ? `(Distance: ${e.distance.toFixed(2)} km)` : ''}`).join('\n\n');
+    const contextText = areas.map((e, i) => `[Document ${i+1}]: Name: ${e.name}. Type: ${e.type}. Content: ${e.content} ${targetCity ? `(Distance: ${e.distance.toFixed(2)} km)` : ''}`).join('\n\n');
     
     // Yield sources to the client
     yield { sources: areas };
+
+    if (isShowQuery) {
+      this.logger.log(`Show query detected, skipping LLM response.`);
+      return;
+    }
 
     yield { status: 'מכין תשובה...' };
 

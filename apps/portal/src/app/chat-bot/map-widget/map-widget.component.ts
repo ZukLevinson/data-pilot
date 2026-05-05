@@ -83,7 +83,9 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
               type: 'Feature',
               properties: {
                 id: source.id,
+                name: source.name,
                 type: source.type,
+                color: source.color,
                 content: source.content
               },
               geometry: geoJson
@@ -98,15 +100,15 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
     if (geoJsonFeatures.length > 0) {
       this.geoJsonLayer = L.geoJSON(geoJsonFeatures as any, {
         style: (feature: any) => ({
-          color: '#3b82f6',
-          weight: 3,
-          opacity: 0.8,
-          fillOpacity: 0.2
+          color: feature.properties.color || '#3b82f6',
+          weight: 4,
+          opacity: 0.9,
+          fillOpacity: 0.3
         }),
         pointToLayer: (feature: any, latlng: any) => {
           return L.circleMarker(latlng, {
-            radius: 6,
-            fillColor: '#3b82f6',
+            radius: 8,
+            fillColor: feature.properties.color || '#3b82f6',
             color: '#fff',
             weight: 2,
             opacity: 1,

@@ -44,8 +44,8 @@
                       source.type.includes('polygon') ? 'pi-box' : 
                       source.type === 'corridor' ? 'pi-arrows-h' : 
                       source.type === 'ellipse' ? 'pi-search' : 'pi-map'
-                    )"></i>
-                    <span class="source-type">{{ source.type }}</span>
+                    )" [style.color]="source.color"></i>
+                    <span class="source-type">{{ source.name }}</span>
                   </div>
                 }
               </div>

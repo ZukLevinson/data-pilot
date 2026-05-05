@@ -11,8 +11,10 @@ datasource db {
 
 model Area {
   id        String                  @id @default(uuid()) @db.Uuid
+  name      String                  @default("Unnamed Area")
   content   String
   type      String
+  color     String                  @default("#3b82f6")
   // PostGIS geometry column (SRID 4326 for WGS 84)
   geom      Unsupported("geometry(Geometry, 4326)")?
   // Using pgvector's vector type with 768 dimensions (for nomic-embed-text)

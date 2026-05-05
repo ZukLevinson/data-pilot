@@ -32,8 +32,10 @@ export interface AppConfig {
 
 export interface EntitySearchResult {
   id: string;
+  name: string;
   content: string;
   type: string;
+  color: string;
   distance: number;
   wkt?: string;
 }

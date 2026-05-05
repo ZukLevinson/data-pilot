@@ -25,6 +25,8 @@ const REGIONS = [
   { name: 'Sea (Mediterranean)', minLon: 20.0, maxLon: 34.0, minLat: 32.0, maxLat: 35.0 }
 ];
 
+const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef'];
+
 function generateWkt(type, region) {
   const lon = parseFloat((Math.random() * (region.maxLon - region.minLon) + region.minLon).toFixed(6));
   const lat = parseFloat((Math.random() * (region.maxLat - region.minLat) + region.minLat).toFixed(6));
@@ -68,7 +70,7 @@ async function seed() {
   const TOTAL_ROWS = 25000;
   const BATCH_SIZE = 100;
   
-  console.log(`Reseeding ${TOTAL_ROWS} rows with multi-region data and real embeddings...`);
+  console.log(`Reseeding ${TOTAL_ROWS} rows with name and color...`);
 
   for (let i = 0; i < TOTAL_ROWS; i += BATCH_SIZE) {
     let values = [];
@@ -79,18 +81,20 @@ async function seed() {
       const region = REGIONS[Math.floor(Math.random() * REGIONS.length)];
       const id = randomUUID();
       const wkt = generateWkt(type, region);
-      const content = `ישות גיאוגרפי מסוג ${type}. מיקום: ${region.name}. WKT: ${wkt}`;
+      const name = `${type.charAt(0).toUpperCase() + type.slice(1)} ${region.name.split(' ')[0]} #${i + j + 1}`;
+      const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+      const content = `ישות גיאוגרפי בשם "${name}" מסוג ${type}. מיקום: ${region.name}. צבע: ${color}. WKT: ${wkt}`;
       
       const baseVector = regionalEmbeddings[region.name];
       const jitteredVector = baseVector.map(v => v + (Math.random() - 0.5) * 0.01);
       const vectorString = `[${jitteredVector.join(',')}]`;
 
-      const idx = j * 5;
-      params.push(id, content, type, vectorString, wkt);
-      values.push(`($${idx + 1}::uuid, $${idx + 2}, $${idx + 3}, $${idx + 4}::vector, ST_GeomFromText($${idx + 5}, 4326))`);
+      const idx = j * 7;
+      params.push(id, name, content, type, color, vectorString, wkt);
+      values.push(`($${idx + 1}::uuid, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}::vector, ST_GeomFromText($${idx + 7}, 4326))`);
     }
 
-    await client.query(`INSERT INTO "Area" (id, content, type, embedding, geom) VALUES ${values.join(',')}`, params);
+    await client.query(`INSERT INTO "Area" (id, name, content, type, color, embedding, geom) VALUES ${values.join(',')}`, params);
     if ((i + BATCH_SIZE) % 5000 === 0) console.log(`Inserted ${i + BATCH_SIZE} / ${TOTAL_ROWS}`);
   }
 
