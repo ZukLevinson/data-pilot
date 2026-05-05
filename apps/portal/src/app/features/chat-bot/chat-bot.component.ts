@@ -1,7 +1,7 @@
 import { Component, ElementRef, ViewChild, signal, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ChatService } from './chat.service';
+import { ChatService } from '../../core/services/chat.service';
 import { ChatMessage, EntitySearchResult } from '@org/models';
 import { helloMessage } from '@org/portal/shared-ui';
 import { Textarea } from 'primeng/textarea';
@@ -11,8 +11,8 @@ import { Avatar } from 'primeng/avatar';
 import { Chip } from 'primeng/chip';
 import { Drawer } from 'primeng/drawer';
 import { ScrollPanel } from 'primeng/scrollpanel';
-import { MapWidgetComponent } from './map-widget/map-widget.component';
-import { MarkdownPipe } from './markdown.pipe';
+import { MapWidgetComponent } from '../../shared/components/map-widget/map-widget.component';
+import { MarkdownPipe } from '../../shared/pipes/markdown.pipe';
 import { HttpClient } from '@angular/common/http';
 
 @Component({
@@ -23,42 +23,19 @@ import { HttpClient } from '@angular/common/http';
   styleUrls: ['./chat-bot.component.css']
 })
 export class ChatBotComponent implements OnInit {
-  private chatService = inject(ChatService);
-  private http = inject(HttpClient);
+  public chatService = inject(ChatService);
   
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
   @ViewChild('messageInput') private messageInput!: ElementRef;
 
-  messages = signal<ChatMessage[]>([{
-    id: 0,
-    sender: 'bot',
-    timestamp: new Date(),
-    text: helloMessage
-  }]);
   inputText = signal<string>('');
-  isWaiting = signal<boolean>(false);
-  currentSources = signal<EntitySearchResult[]>([]);
-  currentQueryPlan = signal<any | null>(null);
-  currentModel = signal<string | null>(null);
-  statusText = signal<string | null>(null);
-  history = signal<any[]>([]);
-  showHistory = signal<boolean>(false);
 
   constructor() {
-    this.loadHistory();
-  }
-
-  loadHistory() {
-    this.http.get<any[]>('/api/chat/history').subscribe(h => this.history.set(h));
-  }
-
-  selectHistory(item: any) {
-    this.inputText.set(item.name);
-    this.sendMessage();
+    this.chatService.loadHistory();
   }
 
   async ngOnInit() {
-    // Start with a clean map, no initial load of 5000 entities
+    this.chatService.getConfig().subscribe(config => this.chatService.currentModel.set(config.modelName));
   }
 
   handleKeyPress(event: KeyboardEvent) {
@@ -70,92 +47,20 @@ export class ChatBotComponent implements OnInit {
 
   async sendMessage() {
     const text = this.inputText().trim();
-    if (!text || this.isWaiting()) return;
-
-    const userMessageId = Date.now();
-    this.messages.update(msgs => [...msgs, {
-      id: userMessageId,
-      text,
-      sender: 'user',
-      timestamp: new Date()
-    }]);
+    if (!text || this.chatService.isWaiting()) return;
 
     this.inputText.set('');
-    this.isWaiting.set(true);
-    this.currentSources.set([]);
-    this.currentQueryPlan.set(null);
     this.scrollToBottom();
 
-    const botMessageId = Date.now() + 1;
-    this.messages.update(msgs => [...msgs, {
-      id: botMessageId,
-      text: '',
-      sender: 'bot',
-      timestamp: new Date()
-    }]);
+    await this.chatService.sendMessage(text);
+    
+    this.scrollToBottom();
+    this.focusInput();
+  }
 
-    try {
-      const stream = this.chatService.streamChat({ userId: 'user-1', question: text });
-      let fullContent = '';
-
-      for await (const chunk of stream) {
-        if (chunk.status) {
-          this.statusText.set(chunk.status);
-          this.messages.update(msgs => msgs.map(m => 
-            m.id === botMessageId ? { ...m, status: chunk.status } : m
-          ));
-        }
-
-        if (chunk.queryPlan) {
-          this.currentQueryPlan.set(chunk.queryPlan);
-          this.messages.update(msgs => msgs.map(m => 
-            m.id === botMessageId ? { ...m, queryPlan: chunk.queryPlan } : m
-          ));
-        }
-
-        if (chunk.sources) {
-          this.messages.update(msgs => msgs.map(m => 
-            m.id === botMessageId ? { ...m, sources: chunk.sources } : m
-          ));
-          
-          if (chunk.mode === 'append') {
-            this.currentSources.update(existing => [...existing, ...chunk.sources!]);
-          } else {
-            this.currentSources.set(chunk.sources);
-          }
-        }
-
-        if (chunk.content) {
-          fullContent += chunk.content;
-          
-          let thought = '';
-          let answer = fullContent;
-          const thinkMatch = fullContent.match(/<think>([\s\S]*?)<\/think>/);
-          if (thinkMatch) {
-            thought = thinkMatch[1];
-            answer = fullContent.replace(/<think>[\s\S]*?<\/think>/, '').trim();
-          } else if (fullContent.includes('<think>')) {
-            thought = fullContent.split('<think>')[1];
-            answer = '';
-          }
-
-          this.messages.update(msgs => msgs.map(m => 
-            m.id === botMessageId ? { ...m, text: answer, thought: thought } : m
-          ));
-        }
-        
-        this.scrollToBottom();
-      }
-    } catch (error) {
-      console.error('Chat error:', error);
-      this.messages.update(msgs => msgs.map(m => 
-        m.id === botMessageId ? { ...m, text: 'מצטער, אירעה שגיאה בתקשורת.', isError: true } : m
-      ));
-    } finally {
-      this.isWaiting.set(false);
-      this.scrollToBottom();
-      this.focusInput();
-    }
+  selectHistory(item: any) {
+    this.inputText.set(item.name);
+    this.sendMessage();
   }
 
   private scrollToBottom() {

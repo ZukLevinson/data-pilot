@@ -1,5 +1,5 @@
 import { Component, ChangeDetectionStrategy } from '@angular/core';
-import { ChatBotComponent } from './chat-bot/chat-bot.component';
+import { ChatBotComponent } from './features/chat-bot/chat-bot.component';
 
 @Component({
   imports: [ChatBotComponent],
