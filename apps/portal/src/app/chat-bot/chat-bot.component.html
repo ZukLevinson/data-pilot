@@ -83,7 +83,7 @@
       <form (ngSubmit)="sendMessage()" class="input-form">
         <textarea 
           #messageInput
-          pInputTextarea
+          pTextarea
           [autoResize]="true"
           rows="1"
           [ngModel]="inputText()" 
@@ -112,9 +112,11 @@
     <app-map-widget [sources]="currentSources()"></app-map-widget>
     
     <!-- Legend Overlay (Optional, but looks premium) -->
-    <div class="map-overlay-info" *ngIf="currentSources().length > 0">
-      <div class="overlay-header">מציג {{ currentSources().length }} אזורים</div>
-      <div class="overlay-details">השאילתה האחרונה הופעלה על בסיס נתונים מרחבי.</div>
-    </div>
+    @if (currentSources().length > 0) {
+      <div class="map-overlay-info">
+        <div class="overlay-header">מציג {{ currentSources().length }} אזורים</div>
+        <div class="overlay-details">השאילתה האחרונה הופעלה על בסיס נתונים מרחבי.</div>
+      </div>
+    }
   </div>
 </div>

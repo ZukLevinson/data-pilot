@@ -7,6 +7,8 @@ export interface ChatMessage {
   sender: MessageSender;
   timestamp: Date;
   isError?: boolean;
+  sources?: EntitySearchResult[];
+  status?: string;
 }
 
 export interface ChatRequest {

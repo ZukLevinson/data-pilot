@@ -1,81 +1,45 @@
-import { Component, ChangeDetectionStrategy, signal, inject, ElementRef, AfterViewInit, OnInit, viewChild, PLATFORM_ID } from '@angular/core';
-import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { Component, ElementRef, ViewChild, signal, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
-import { TextareaModule } from 'primeng/textarea';
-import { AvatarModule } from 'primeng/avatar';
-import { BadgeModule } from 'primeng/badge';
-import { ChatMessage } from '@org/models';
 import { ChatService } from './chat.service';
-import { firstValueFrom } from 'rxjs';
-import { EntitySearchResult } from '@org/models';
-
-interface Message {
-  id: number;
-  text: string;
-  sender: 'user' | 'bot';
-  timestamp: Date;
-  thought?: string;
-  sources?: EntitySearchResult[];
-  isError?: boolean;
-}
-
+import { ChatMessage, EntitySearchResult } from '@org/models';
+import { Textarea } from 'primeng/textarea';
+import { Button } from 'primeng/button';
+import { Badge } from 'primeng/badge';
+import { Avatar } from 'primeng/avatar';
 import { MapWidgetComponent } from './map-widget/map-widget.component';
 
 @Component({
   selector: 'app-chat-bot',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, TextareaModule, AvatarModule, BadgeModule, MapWidgetComponent],
+  imports: [CommonModule, FormsModule, Textarea, Button, Badge, Avatar, MapWidgetComponent],
   templateUrl: './chat-bot.component.html',
-  styleUrls: ['./chat-bot.component.css'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  styleUrls: ['./chat-bot.component.css']
 })
-export class ChatBotComponent implements AfterViewInit, OnInit {
+export class ChatBotComponent {
   private chatService = inject(ChatService);
-  private platformId = inject(PLATFORM_ID);
-
-  messageInput = viewChild<ElementRef<HTMLTextAreaElement>>('messageInput');
-
-  messages = signal<Message[]>([
-    {
-      id: 1,
-      text: 'שלום! איך אני יכול לעזור לך היום?',
-      sender: 'bot',
-      timestamp: new Date()
-    }
-  ]);
   
-  inputText = signal('');
-  isWaiting = signal(false);
-  statusText = signal<string | null>(null);
-  currentModel = signal<string | null>(null);
+  @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
+  @ViewChild('messageInput') private messageInput!: ElementRef;
+
+  messages = signal<ChatMessage[]>([]);
+  inputText = signal<string>('');
+  isWaiting = signal<boolean>(false);
   currentSources = signal<EntitySearchResult[]>([]);
+  currentModel = signal<string | null>(null);
+  statusText = signal<string | null>(null);
 
-  async ngOnInit() {
-    if (isPlatformBrowser(this.platformId)) {
-      try {
-        const config = await firstValueFrom(this.chatService.getConfig());
-        this.currentModel.set(config.modelName);
-      } catch (err) {
-        console.error('Failed to fetch model config:', err);
-      }
+  handleKeyPress(event: KeyboardEvent) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      this.sendMessage();
     }
-  }
-
-  ngAfterViewInit() {
-    this.focusInput();
-  }
-
-  private focusInput() {
-    setTimeout(() => {
-      this.messageInput()?.nativeElement?.focus();
-    }, 100);
   }
 
   async sendMessage() {
     const text = this.inputText().trim();
     if (!text || this.isWaiting()) return;
-    
+
     const userMessageId = Date.now();
     this.messages.update(msgs => [...msgs, {
       id: userMessageId,
@@ -86,29 +50,26 @@ export class ChatBotComponent implements AfterViewInit, OnInit {
 
     this.inputText.set('');
     this.isWaiting.set(true);
-    this.statusText.set('מעבד...');
-    this.focusInput();
+    this.scrollToBottom();
 
     const botMessageId = Date.now() + 1;
     this.messages.update(msgs => [...msgs, {
       id: botMessageId,
       text: '',
-      thought: '',
       sender: 'bot',
       timestamp: new Date()
     }]);
 
     try {
+      const stream = this.chatService.streamChat({ userId: 'user-1', question: text });
       let fullContent = '';
-      const stream = this.chatService.streamChat({
-        userId: '00000000-0000-0000-0000-000000000000',
-        question: text
-      });
 
       for await (const chunk of stream) {
         if (chunk.status) {
           this.statusText.set(chunk.status);
-          continue;
+          this.messages.update(msgs => msgs.map(m => 
+            m.id === botMessageId ? { ...m, status: chunk.status } : m
+          ));
         }
 
         if (chunk.sources) {
@@ -121,48 +82,52 @@ export class ChatBotComponent implements AfterViewInit, OnInit {
           } else {
             this.currentSources.set(chunk.sources);
           }
-          continue;
         }
 
-        if (!chunk.content) continue;
-        this.statusText.set(null);
-        fullContent += chunk.content;
+        if (chunk.content) {
+          fullContent += chunk.content;
+          
+          let thought = '';
+          let answer = fullContent;
+          const thinkMatch = fullContent.match(/<think>([\s\S]*?)<\/think>/);
+          if (thinkMatch) {
+            thought = thinkMatch[1];
+            answer = fullContent.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+          } else if (fullContent.includes('<think>')) {
+            thought = fullContent.split('<think>')[1];
+            answer = '';
+          }
+
+          this.messages.update(msgs => msgs.map(m => 
+            m.id === botMessageId ? { ...m, text: answer, thought: thought } : m
+          ));
+        }
         
-        let thought = '';
-        let answer = fullContent;
-        const thinkMatch = fullContent.match(/<think>([\s\S]*?)<\/think>/);
-        if (thinkMatch) {
-          thought = thinkMatch[1];
-          answer = fullContent.replace(/<think>[\s\S]*?<\/think>/, '').trim();
-        } else if (fullContent.includes('<think>')) {
-          thought = fullContent.split('<think>')[1];
-          answer = '';
-        }
-
-        this.messages.update(msgs => msgs.map(m => 
-          m.id === botMessageId ? { ...m, text: answer, thought: thought } : m
-        ));
+        this.scrollToBottom();
       }
-    } catch (err) {
-      console.error('Streaming Error:', err);
+    } catch (error) {
+      console.error('Chat error:', error);
       this.messages.update(msgs => msgs.map(m => 
-        m.id === botMessageId ? { 
-          ...m, 
-          text: 'אופס! נראה שיש לי תקלה קלה בחיבור. אנא נסו שוב בעוד רגע.',
-          isError: true 
-        } : m
+        m.id === botMessageId ? { ...m, text: 'מצטער, אירעה שגיאה בתקשורת.', isError: true } : m
       ));
     } finally {
       this.isWaiting.set(false);
-      this.statusText.set(null);
+      this.scrollToBottom();
     }
   }
 
-  handleKeyPress(event: KeyboardEvent) {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      this.sendMessage();
+  private scrollToBottom() {
+    setTimeout(() => {
+      if (this.scrollContainer) {
+        const element = this.scrollContainer.nativeElement;
+        element.scrollTop = element.scrollHeight;
+      }
+    }, 50);
+  }
+
+  focusInput() {
+    if (this.messageInput) {
+      this.messageInput.nativeElement.focus();
     }
   }
 }
-
