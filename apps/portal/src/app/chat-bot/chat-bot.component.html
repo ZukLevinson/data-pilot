@@ -101,7 +101,7 @@
                         </div>
 
                         <!-- Relation Arrow -->
-                        @if (message.queryPlan.clusterConditions) {
+                        @for (clusterCond of getClusterConditions(message.queryPlan); track clusterCond) {
                           <div class="hierarchy-connector">
                             <i class="pi pi-angle-double-down"></i>
                             <span class="connector-label">מכיל רכיבים פנימיים מסוג:</span>
@@ -114,13 +114,33 @@
                               <span>מקבץ (Cluster)</span>
                             </div>
                             <div class="node-body">
-                              @for (cond of message.queryPlan.clusterConditions | keyvalue; track cond.key) {
+                              @for (cond of clusterCond | keyvalue; track cond.key) {
                                 <div class="logic-line">
                                   <span class="logic-field">{{ getReadableField(cond.key) }}</span>
                                   <span class="logic-op">{{ getReadableOperator($any(cond.value).operator || 'equals') }}</span>
                                   <span class="logic-val">{{ $any(cond.value).value || cond.value }}</span>
                                 </div>
                               }
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+
+                  @if (message.queryPlan.aggregationResults && (message.queryPlan.aggregationResults | json) !== '{}') {
+                    <div class="plan-item full">
+                      <span class="label">נתונים מסוכמים:</span>
+                      <div class="aggregation-results">
+                        @for (agg of message.queryPlan.aggregationResults | keyvalue; track agg.key) {
+                          <div class="agg-result-card">
+                            <i class="pi pi-chart-bar"></i>
+                            <div class="agg-info">
+                              <span class="agg-label">{{ getReadableAggType(agg.key) }}:</span>
+                              <span class="agg-value">
+                                {{ agg.value | number }} 
+                                {{ isCountAgg(agg.key) ? 'יחידות' : 'ק״ג' }}
+                              </span>
                             </div>
                           </div>
                         }

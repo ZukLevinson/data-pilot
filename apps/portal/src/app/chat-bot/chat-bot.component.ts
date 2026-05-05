@@ -201,4 +201,30 @@ export class ChatBotComponent implements OnInit {
     };
     return targetMap[target] || target;
   }
+
+  getReadableAggType(key: any): string {
+    const parts = key.split('_');
+    const type = parts[0];
+    const field = parts[1];
+    
+    const typeMap: Record<string, string> = {
+      'sum': 'סה״כ',
+      'avg': 'ממוצע',
+      'min': 'מינימום',
+      'max': 'מקסימום',
+      'count': 'ספירה'
+    };
+    
+    const fieldLabel = this.getReadableField(field);
+    return `${typeMap[type] || type} ${fieldLabel}`;
+  }
+
+  isCountAgg(key: any): boolean {
+    return String(key).startsWith('count');
+  }
+
+  getClusterConditions(plan: any): any[] {
+    if (!plan.clusterConditions) return [];
+    return Array.isArray(plan.clusterConditions) ? plan.clusterConditions : [plan.clusterConditions];
+  }
 }

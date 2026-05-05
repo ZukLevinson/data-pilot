@@ -107,13 +107,31 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
       console.log(`Adding ${geoJsonFeatures.length} features to map`);
       this.geoJsonLayer = L.geoJSON(geoJsonFeatures as any, {
         style: (feature: any) => {
-          const isMine = feature.properties.type === 'Mine';
+          const type = feature.properties.type;
+          if (type === 'Mine') {
+            return {
+              color: '#1e3a8a',
+              weight: 4,
+              opacity: 1,
+              fillColor: '#3b82f6',
+              fillOpacity: 0.4,
+            };
+          } else if (type === 'Mission') {
+            return {
+              color: '#4c1d95', // Deep Violet border
+              weight: 5,
+              opacity: 1,
+              fillColor: '#a855f7', // Bright Violet fill
+              fillOpacity: 0.7,
+              dashArray: '6, 4' // Dashed border to indicate "active operation"
+            };
+          }
           return {
-            color: isMine ? '#1e3a8a' : (feature.properties.color || '#3b82f6'),
-            weight: isMine ? 5 : 1,
-            opacity: isMine ? 1 : 0.6,
+            color: feature.properties.color || '#3b82f6',
+            weight: 1,
+            opacity: 0.6,
             fillColor: feature.properties.color || '#3b82f6',
-            fillOpacity: isMine ? 0.6 : 0.2,
+            fillOpacity: 0.2,
           };
         },
         pointToLayer: (feature: any, latlng: any) => {

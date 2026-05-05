@@ -60,19 +60,35 @@ Structure:
     "fieldName": { "operator": "contains" | "notContains" | "gt" | "lt" | "after" | "before", "value": any }
   },
   "mineConditions": { "name": { "operator": "contains" | "notContains", "value": string } },
-  "clusterConditions": { 
-    "stoneType": { "operator": "contains" | "notContains", "value": string },
-    "quantity": { "operator": "gt" | "lt", "value": number },
-    "minCount": number
-  }
+  "clusterConditions": [
+    {
+      "stoneType": { "operator": "contains" | "notContains", "value": string },
+      "quantity": { "operator": "gt" | "lt", "value": number },
+      "minCount": number
+    }
+  ],
+  "aggregations": [
+    { "field": "quantity", "type": "sum" | "avg" | "min" | "max" | "count" }
+  ]
 }
+
+- If the user asks for "total", "sum", "average", "mean", "min", "max" of a numeric field (like quantity), use the "aggregations" field.
+- If the user asks "how many" (כמה מקבצים, כמה מכרות) or "number of", use the "count" aggregation type.
+
+- TARGET SELECTION RULES:
+  1. If the user asks for "משימות" or "משימות קידוח" (Drill Missions), the target MUST be "DrillMission".
+  2. If the user asks for "מכרות" (Mines), the target is "Mine".
+  3. If the user asks for "מקבצים" (Clusters), the target is "Cluster".
+  4. Relational filtering: If the target is "DrillMission" but filtered by Mine or Cluster properties, keep target as "DrillMission" and use mineConditions/clusterConditions.
+- Hebrew mappings: מכרה = Mine, מקבץ = Cluster, משימה = DrillMission.
 
 Important:
 1. Minerals (Neodymium, Dysprosium, etc.) are ONLY found in Clusters. 
 2. If the user asks for "Mines containing [Stone]", target "Mine" and put the stone filter in "clusterConditions" (or conditions.stoneType). NEVER put the stone name in Mine:name.
 3. Use "stoneType" (exactly) for mineral names. 
 4. ALWAYS use the English technical name for minerals even if the user asks in Hebrew.
-5. Output ONLY valid JSON.`;
+5. Output ONLY valid JSON.
+6. Example: "משימות קידוח במכרות עם Neodymium" -> target: "DrillMission", clusterConditions: { stoneType: "Neodymium" }`;
 
       const planRes = await this.llm.invoke(planPrompt);
       const match = planRes.content.toString().match(/\{[\s\S]*\}/);
@@ -95,48 +111,65 @@ Important:
 
     // 2. Execute the Plan (Mapping JSON to Prisma/SQL)
     let entities: EntitySearchResult[] = [];
+    let activeWhere: any = {};
     try {
+      const resultLimit = queryPlan.limit || 5000;
       if (queryPlan.target === 'Mine') {
         const where: any = {};
+        activeWhere = where;
         if (queryPlan.conditions?.name) {
           where.name = { contains: queryPlan.conditions.name.value, mode: 'insensitive' };
         }
-        let stoneTypeForSql = '';
-        if (queryPlan.conditions?.stoneType || queryPlan.clusterConditions?.stoneType || queryPlan.stoneType) {
-          let stoneType = '';
-          const rawType = queryPlan.clusterConditions?.stoneType || queryPlan.conditions?.stoneType || queryPlan.stoneType;
-          
-          if (typeof rawType === 'string') {
-            stoneType = rawType;
-          } else if (typeof rawType === 'object' && rawType !== null) {
-            stoneType = rawType.value || rawType.contains || rawType.equals || '';
+        const clusterConds = Array.isArray(queryPlan.clusterConditions) 
+          ? queryPlan.clusterConditions 
+          : (queryPlan.clusterConditions ? [queryPlan.clusterConditions] : []);
+
+        const stoneTypesForSql: string[] = [];
+        
+        if (clusterConds.length > 0) {
+          const andFilters: any[] = [];
+          for (const cond of clusterConds) {
+            const filter: any = {};
+            let stoneType = '';
+            const rawType = cond.stoneType;
+            if (typeof rawType === 'string') stoneType = rawType;
+            else if (rawType?.value) stoneType = rawType.value;
+
+            if (stoneType) {
+              stoneTypesForSql.push(stoneType);
+              const op = rawType?.operator === 'notContains' ? 'none' : 'some';
+              filter.clusters = { [op]: { stoneType: { contains: stoneType, mode: 'insensitive' } } };
+            }
+
+            if (cond.quantity) {
+              if (!filter.clusters) filter.clusters = { some: {} };
+              const q = cond.quantity;
+              const op = q.operator === 'gt' ? 'gt' : 'lt';
+              filter.clusters.some.quantity = { [op]: q.value };
+            }
+
+            if (Object.keys(filter).length > 0) andFilters.push(filter);
+
+            // minCount for this specific condition
+            if (cond.minCount) {
+              const minCount = cond.minCount;
+              this.logger.log(`Filtering mines with at least ${minCount} of ${stoneType || 'any'} clusters`);
+              const matchingMineIds = await this.prisma.$queryRawUnsafe<{mine_id: string}[]>(
+                `SELECT mine_id FROM "Cluster" 
+                 ${stoneType ? `WHERE stone_type ILIKE '%${stoneType}%'` : ''}
+                 GROUP BY mine_id 
+                 HAVING COUNT(*) >= ${minCount}
+                 LIMIT ${resultLimit}`
+              );
+              const ids = matchingMineIds.map(m => m.mine_id);
+              if (!where.id) where.id = { in: ids };
+              else {
+                 // Intersection if already has IDs
+                 where.id.in = where.id.in.filter((id: string) => ids.includes(id));
+              }
+            }
           }
-
-          if (stoneType) {
-            stoneTypeForSql = stoneType;
-            const op = rawType.operator === 'notContains' ? 'none' : 'some';
-            this.logger.log(`Filtering mines by stoneType: ${stoneType} with operator: ${op}`);
-            where.clusters = {
-              [op]: { stoneType: { contains: stoneType, mode: 'insensitive' } }
-            };
-          }
-        }
-
-        const resultLimit = queryPlan.limit || 5000;
-
-        // Aggregate Filter: at least X clusters
-        if (queryPlan.clusterConditions?.minCount) {
-          const minCount = queryPlan.clusterConditions.minCount;
-          this.logger.log(`Filtering mines with at least ${minCount} clusters`);
-          const matchingMineIds = await this.prisma.$queryRawUnsafe<{mine_id: string}[]>(
-            `SELECT mine_id FROM "Cluster" 
-             ${stoneTypeForSql ? `WHERE stone_type ILIKE '%${stoneTypeForSql}%'` : ''}
-             GROUP BY mine_id 
-             HAVING COUNT(*) >= ${minCount}
-             LIMIT ${resultLimit}`
-          );
-          const ids = matchingMineIds.map(m => m.mine_id);
-          where.id = { in: ids };
+          if (andFilters.length > 0) where.AND = andFilters;
         }
 
         this.logger.log(`Executing Mine findMany for ${queryPlan.target}`);
@@ -152,19 +185,19 @@ Important:
           whereClauses.push(`"Mine".name ILIKE '%${queryPlan.conditions.name.value}%'`);
         }
 
-        if (stoneTypeForSql || queryPlan.clusterConditions) {
-          joinClauses.push(`INNER JOIN "Cluster" ON "Cluster".mine_id = "Mine".id`);
-          if (stoneTypeForSql) {
-            whereClauses.push(`"Cluster".stone_type ILIKE '%${stoneTypeForSql}%'`);
-          }
-          if (queryPlan.clusterConditions?.quantity) {
-            const q = queryPlan.clusterConditions.quantity;
-            const op = q.operator === 'gt' ? '>' : q.operator === 'lt' ? '<' : '=';
-            whereClauses.push(`"Cluster".quantity ${op} ${q.value}`);
-          }
-          if (queryPlan.clusterConditions?.minCount) {
-            whereClauses.push(`(SELECT COUNT(*) FROM "Cluster" c WHERE c.mine_id = "Mine".id ${stoneTypeForSql ? `AND c.stone_type ILIKE '%${stoneTypeForSql}%'` : ''}) >= ${queryPlan.clusterConditions.minCount}`);
-          }
+        if (clusterConds.length > 0) {
+          clusterConds.forEach((cond: any, idx: number) => {
+            const alias = `c${idx}`;
+            joinClauses.push(`INNER JOIN "Cluster" ${alias} ON ${alias}.mine_id = "Mine".id`);
+            const stoneType = typeof cond.stoneType === 'string' ? cond.stoneType : cond.stoneType?.value;
+            if (stoneType) {
+              whereClauses.push(`${alias}.stone_type ILIKE '%${stoneType}%'`);
+            }
+            if (cond.quantity) {
+              const op = cond.quantity.operator === 'gt' ? '>' : '<';
+              whereClauses.push(`${alias}.quantity ${op} ${cond.quantity.value}`);
+            }
+          });
         }
 
         if (joinClauses.length > 0) sql += ` ${joinClauses.join(' ')}`;
@@ -190,6 +223,7 @@ Important:
         }
       } else if (queryPlan.target === 'Cluster') {
         const where: any = {};
+        activeWhere = where;
         if (queryPlan.conditions?.stoneType) {
           where.stoneType = { contains: queryPlan.conditions.stoneType.value, mode: 'insensitive' };
         }
@@ -200,7 +234,6 @@ Important:
           if (op === 'lt') where.quantity = { lt: val };
         }
         
-        const resultLimit = queryPlan.limit || 5000;
         const clusters = await this.prisma.cluster.findMany({ 
           where, 
           include: { mine: true },
@@ -227,6 +260,7 @@ Important:
         (queryPlan as any).generatedSql = `SELECT count(*) FROM "Cluster" ${queryPlan.conditions?.stoneType ? `WHERE stone_type ILIKE '%${queryPlan.conditions.stoneType.value}%'` : ''}`;
       } else if (queryPlan.target === 'DrillMission') {
         const where: any = {};
+        activeWhere = where;
         if (queryPlan.conditions?.date) {
           const op = queryPlan.conditions.date.operator;
           const val = new Date(queryPlan.conditions.date.value);
@@ -248,13 +282,13 @@ Important:
           };
         }
 
-        const resultLimit = queryPlan.limit || 5000;
         const missions = await this.prisma.drillMission.findMany({
           where,
           include: { mine: true, drill: true },
           take: resultLimit
         });
         const totalCount = await this.prisma.drillMission.count({ where });
+        (queryPlan as any).totalCount = totalCount;
 
         // Missions are points on the mine location for visualization
         const mineIds = missions.map(m => m.mine.id);
@@ -273,6 +307,23 @@ Important:
         }));
         (queryPlan as any).totalCount = totalCount;
         (queryPlan as any).generatedSql = `SELECT count(*) FROM "DrillMission" INNER JOIN "Mine" ON "DrillMission".mine_id = "Mine".id ${queryPlan.mineConditions?.name ? `WHERE "Mine".name ILIKE '%${queryPlan.mineConditions.name.value}%'` : ''}`;
+      }
+
+      // 2.3 Handle Aggregations if requested
+      if (queryPlan.aggregations && queryPlan.aggregations.length > 0) {
+        const aggregationResults: Record<string, number> = {};
+        for (const agg of queryPlan.aggregations) {
+          if (queryPlan.target === 'Cluster' || (queryPlan.target === 'Mine' && agg.field === 'quantity')) {
+            // If target is Mine but field is quantity, we aggregate on Cluster related to those mines
+            const aggWhere = queryPlan.target === 'Mine' ? activeWhere.clusters : activeWhere;
+            const result = await (this.prisma.cluster.aggregate as any)({
+              where: aggWhere,
+              [`_${agg.type}`]: { [agg.field]: true }
+            });
+            aggregationResults[`${agg.type}_${agg.field}`] = (result as any)[`_${agg.type}`][agg.field];
+          }
+        }
+        (queryPlan as any).aggregationResults = aggregationResults;
       }
 
       // 3. Persist the Query for future use
