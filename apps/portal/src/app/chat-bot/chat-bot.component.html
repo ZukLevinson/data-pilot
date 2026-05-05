@@ -59,10 +59,19 @@
               }
             }
             
-            <!-- Status / Typing -->
-            @if (!message.text && !message.thought && isWaiting()) {
+            <!-- Status / Thinking / Typing -->
+            @if (!message.text && isWaiting()) {
               <div class="typing-container">
-                @if (statusText()) {
+                @if (message.thought) {
+                  <!-- Live thinking stream -->
+                  <div class="thinking-live">
+                    <div class="thinking-header">
+                      <i class="pi pi-spin pi-cog"></i>
+                      <span>חושב...</span>
+                    </div>
+                    <div class="thinking-text">{{ message.thought }}</div>
+                  </div>
+                } @else if (statusText()) {
                   <div class="status-indicator">
                     <i class="pi pi-spin pi-spinner"></i>
                     <span>{{ statusText() }}</span>

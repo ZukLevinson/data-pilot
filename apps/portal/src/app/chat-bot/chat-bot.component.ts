@@ -23,7 +23,24 @@ export class ChatBotComponent {
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
   @ViewChild('messageInput') private messageInput!: ElementRef;
 
-  messages = signal<ChatMessage[]>([]);
+  messages = signal<ChatMessage[]>([{
+    id: 0,
+    sender: 'bot',
+    timestamp: new Date(),
+    text: `**שלום! אני Data Pilot 🗺️**
+
+אני עוזר GIS חכם שיכול לעזור לך לחקור ולהציג ישויות גיאוגרפיות על המפה.
+
+**מה אני יכול לעשות:**
+- הצג אזורים על המפה לפי סוג, צבע או שם
+- ענה על שאלות כמותיות ("כמה אזורים אדומים יש?")
+- סנן לפי מיקום ("הצג עיגולים בתל אביב")
+
+**דוגמאות לשאילתות:**
+- *"הצג 10 אזורים"*
+- *"כמה עיגולים יש במערכת?"*
+- *"הצג את כל האזורים האדומים"*`
+  }]);
   inputText = signal<string>('');
   isWaiting = signal<boolean>(false);
   currentSources = signal<EntitySearchResult[]>([]);
@@ -128,8 +145,10 @@ export class ChatBotComponent {
   }
 
   focusInput() {
-    if (this.messageInput) {
-      this.messageInput.nativeElement.focus();
-    }
+    setTimeout(() => {
+      if (this.messageInput) {
+        this.messageInput.nativeElement.focus();
+      }
+    }, 100);
   }
 }

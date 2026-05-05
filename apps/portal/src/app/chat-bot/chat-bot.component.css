@@ -161,6 +161,39 @@
   font-style: italic;
 }
 
+/* Live thinking stream (while waiting) */
+.thinking-live {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.6rem 0.85rem;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 0.35rem;
+}
+
+.thinking-header .pi-cog {
+  color: #3b82f6;
+}
+
+.thinking-text {
+  font-size: 0.8125rem;
+  color: #64748b;
+  font-style: italic;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .sources-pills {
   display: flex;
   flex-wrap: wrap;

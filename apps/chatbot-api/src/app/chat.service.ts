@@ -69,7 +69,10 @@ EXAMPLES:
 - "תציג 5 אזורים" -> {}
 - "תציג 5 איזורים" -> {}
 - "הצג 10 אזורים אדומים" -> {"color": "#ef4444"}
+- "אזורים אדומים" -> {"color": "#ef4444"}
+- "הצג עיגולים כחולים" -> {"color": "#3b82f6", "type": "circle"}
 - "show me 7 circles" -> {"type": "circle"}
+- "show me green areas" -> {"color": "#10b981"}
 
 Colors: #ef4444 (red), #f97316 (orange), #f59e0b (yellow), #10b981 (green), #3b82f6 (blue), #6366f1 (indigo), #8b5cf6 (purple), #d946ef (pink).
 Types: point, circle, open polygon, closed polygon, corridor, ellipse.`;
@@ -92,7 +95,7 @@ Types: point, circle, open polygon, closed polygon, corridor, ellipse.`;
     // Post-process: strip any filter the LLM hallucinated for purely generic queries
     // e.g. "תציג 5 אזורים" / "תציג 5 איזורים" → no filter at all
     const hasExplicitType = /circle|מעגל|עיגול|point|נקודה|polygon|פוליגון|מצולע|corridor|מסדרון|ellipse|אליפסה/i.test(question);
-    const hasExplicitColor = /red|אדום|blue|כחול|green|ירוק|orange|כתום|yellow|צהוב|purple|סגול|pink|ורוד|indigo/i.test(question);
+    const hasExplicitColor = /red|אדו(ם|מ)|blue|כחו(ל|ל)|green|ירו(ק|ק)|orange|כתו(ם|מ)|yellow|צהו(ב|ב)|purple|סגו(ל|ל)|pink|ורו(ד|ד)|indigo|חום|לבן|שחור|אפור|זהב/i.test(question);
     const hasExplicitName = /named|שם|בשם/i.test(question);
 
     if (!hasExplicitType) delete filters.type;
