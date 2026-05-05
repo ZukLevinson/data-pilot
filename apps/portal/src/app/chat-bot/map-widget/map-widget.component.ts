@@ -10,12 +10,13 @@ import { parse } from 'wellknown';
   template: `<div #mapContainer class="map-container"></div>`,
   styles: [`
     .map-container {
-      height: 250px;
+      height: 450px;
       width: 100%;
-      border-radius: 8px;
+      border-radius: 12px;
       margin-top: 10px;
       border: 1px solid #e2e8f0;
       z-index: 1;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     }
   `]
 })

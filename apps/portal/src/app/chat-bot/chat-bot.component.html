@@ -49,7 +49,6 @@
                   </div>
                 }
               </div>
-              <app-map-widget [sources]="message.sources"></app-map-widget>
             </div>
           }
 
@@ -77,6 +76,13 @@
         <div class="message-time">
           {{ message.timestamp | date:'HH:mm' }}
         </div>
+
+        <!-- External Map Widget -->
+        @if (message.sources && message.sources.length > 0) {
+          <div class="external-map-wrapper">
+            <app-map-widget [sources]="message.sources"></app-map-widget>
+          </div>
+        }
       </div>
     }
   </div>

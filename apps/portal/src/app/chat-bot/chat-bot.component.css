@@ -166,6 +166,26 @@
   text-transform: capitalize;
 }
 
+/* External Map Wrapper */
+.external-map-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem 0;
+  padding: 0 1rem;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.external-map-wrapper app-map-widget {
+  width: 100%;
+  max-width: 800px; /* Cap size for readability */
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .answer-text {
   color: #2c3e50;
   white-space: pre-wrap;
