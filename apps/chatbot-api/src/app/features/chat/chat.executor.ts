@@ -233,7 +233,7 @@ export class ChatExecutor {
           const result = await this.prisma.cluster.aggregate({
             where: aggWhere,
             [`_${agg.type}`]: { [agg.field]: true }
-          } as any);
+          } as unknown as Prisma.ClusterAggregateArgs);
           const resultObj = result as Record<string, Record<string, unknown>>;
           const aggKey = `_${agg.type}`;
           const fieldKey = agg.field;
