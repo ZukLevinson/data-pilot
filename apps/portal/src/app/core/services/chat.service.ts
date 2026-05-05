@@ -1,6 +1,6 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { AppConfig, ChatMessage, ChatRequest, ChatStreamChunk, EntitySearchResult } from '@org/models';
+import { AppConfig, ChatMessage, ChatRequest, ChatStreamChunk, EntitySearchResult, QueryPlan, SavedQuery } from '@org/models';
 
 import { helloMessage } from '@org/portal/shared-ui';
 
@@ -16,10 +16,10 @@ export class ChatService {
     text: helloMessage
   }]);
   currentSources = signal<EntitySearchResult[]>([]);
-  currentQueryPlan = signal<any | null>(null);
+  currentQueryPlan = signal<QueryPlan | null>(null);
   currentModel = signal<string | null>(null);
   statusText = signal<string | null>(null);
-  history = signal<any[]>([]);
+  history = signal<SavedQuery[]>([]);
   isWaiting = signal<boolean>(false);
   showHistory = signal<boolean>(false);
 
@@ -28,7 +28,7 @@ export class ChatService {
   }
 
   loadHistory() {
-    this.http.get<any[]>('/api/chat/history').subscribe(h => this.history.set(h));
+    this.http.get<SavedQuery[]>('/api/chat/history').subscribe(h => this.history.set(h));
   }
 
   async sendMessage(text: string) {

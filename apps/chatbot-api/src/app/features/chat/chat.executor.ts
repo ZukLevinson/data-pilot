@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../core/database/prisma.service';
-import { EntitySearchResult } from '@org/models';
+import { EntitySearchResult, QueryPlan } from '@org/models';
 
 @Injectable()
 export class ChatExecutor {
@@ -8,7 +8,7 @@ export class ChatExecutor {
 
   constructor(private prisma: PrismaService) {}
 
-  async executePlan(queryPlan: any, question: string): Promise<EntitySearchResult[]> {
+  async executePlan(queryPlan: QueryPlan, question: string): Promise<EntitySearchResult[]> {
     let entities: EntitySearchResult[] = [];
     let activeWhere: any = {};
     const resultLimit = queryPlan.limit || 5000;
@@ -220,7 +220,7 @@ export class ChatExecutor {
 
     // Persist Query
     await this.prisma.savedQuery.create({
-      data: { name: question, query: queryPlan, sql: `Generated for: ${queryPlan.target}` }
+      data: { name: question, query: queryPlan as any, sql: `Generated for: ${queryPlan.target}` }
     });
 
     return entities;

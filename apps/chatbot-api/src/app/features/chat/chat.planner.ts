@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ChatOpenAI } from '@langchain/openai';
+import { QueryPlan } from '@org/models';
 
 @Injectable()
 export class ChatPlanner {
   private readonly logger = new Logger(ChatPlanner.name);
 
-  async generatePlan(llm: ChatOpenAI, question: string): Promise<any> {
+  async generatePlan(llm: ChatOpenAI, question: string): Promise<QueryPlan | null> {
     const planPrompt = `You are a SQL Query Planner for a Rare Earth Mining database.
 Question: "${question}"
 

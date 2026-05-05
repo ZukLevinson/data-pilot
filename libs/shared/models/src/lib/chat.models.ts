@@ -1,5 +1,41 @@
 export type MessageSender = 'user' | 'bot' | 'system';
 
+export interface QueryCondition {
+  operator: 'contains' | 'notContains' | 'gt' | 'lt' | 'after' | 'before' | 'equals';
+  value: any;
+}
+
+export interface ClusterCondition {
+  stoneType?: QueryCondition;
+  quantity?: QueryCondition;
+  minCount?: number;
+}
+
+export interface Aggregation {
+  field: string;
+  type: 'sum' | 'avg' | 'min' | 'max' | 'count';
+}
+
+export interface QueryPlan {
+  target: 'Mine' | 'Cluster' | 'Drill' | 'DrillMission';
+  limit?: number;
+  conditions?: Record<string, QueryCondition | any>;
+  mineConditions?: Record<string, QueryCondition>;
+  clusterConditions?: ClusterCondition[];
+  aggregations?: Aggregation[];
+  generatedSql?: string;
+  totalCount?: number;
+  aggregationResults?: Record<string, number>;
+}
+
+export interface SavedQuery {
+  id: string;
+  name: string;
+  query: QueryPlan;
+  sql: string;
+  createdAt: string | Date;
+}
+
 export interface ChatMessage {
   id: number;
   text: string;
@@ -9,7 +45,7 @@ export interface ChatMessage {
   isError?: boolean;
   sources?: EntitySearchResult[];
   status?: string;
-  queryPlan?: any;
+  queryPlan?: QueryPlan;
 }
 
 export interface ChatRequest {
@@ -27,7 +63,7 @@ export interface ChatStreamChunk {
   status?: string;
   sources?: EntitySearchResult[];
   mode?: 'replace' | 'append';
-  queryPlan?: any;
+  queryPlan?: QueryPlan;
 }
 
 export interface AppConfig {

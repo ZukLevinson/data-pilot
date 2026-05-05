@@ -2,6 +2,7 @@ import { Component, ElementRef, ViewChild, signal, inject, OnInit } from '@angul
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService } from '../../core/services/chat.service';
+import { SavedQuery } from '@org/models';
 import { Textarea } from 'primeng/textarea';
 import { Button } from 'primeng/button';
 import { Badge } from 'primeng/badge';
@@ -55,7 +56,7 @@ export class ChatBotComponent implements OnInit {
     this.focusInput();
   }
 
-  selectHistory(item: any) {
+  selectHistory(item: SavedQuery) {
     this.inputText.set(item.name);
     this.sendMessage();
   }

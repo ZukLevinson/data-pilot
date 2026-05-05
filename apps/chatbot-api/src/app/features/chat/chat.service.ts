@@ -10,6 +10,7 @@ export class ChatService {
   private llm: ChatOpenAI;
 
   public readonly modelName: string;
+  public readonly embeddingModel: string;
 
   constructor(
     private planner: ChatPlanner,
@@ -17,6 +18,7 @@ export class ChatService {
   ) {
     const baseURL = process.env.LOCAL_LLM_URL || 'http://localhost:11434/v1';
     this.modelName = process.env['LOCAL_LLM_MODEL'] || 'qwen3-coder';
+    this.embeddingModel = process.env['LOCAL_EMBEDDING_MODEL'] || 'nomic-embed-text';
 
     this.llm = new ChatOpenAI({
       modelName: this.modelName,
