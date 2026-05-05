@@ -127,5 +127,8 @@
     }
   },
   "analytics": false,
-  "neverConnectToCloud": true
+  "neverConnectToCloud": true,
+  "cli": {
+    "packageManager": "pnpm"
+  }
 }
