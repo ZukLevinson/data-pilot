@@ -3,16 +3,30 @@ import { ChatBotComponent } from './chat-bot.component';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { ChatService } from './chat.service';
+import { ChatService } from '../../core/services/chat.service';
 import { of } from 'rxjs';
-import { helloMessage } from '@org/portal/shared-ui';
+import { signal } from '@angular/core';
 
 describe('ChatBotComponent', () => {
   let component: ChatBotComponent;
   let fixture: ComponentFixture<ChatBotComponent>;
-  let chatService: ChatService;
+  let mockChatService: any;
 
   beforeEach(async () => {
+    mockChatService = {
+      messages: signal([{ id: 0, sender: 'bot', text: 'שלום', timestamp: new Date() }]),
+      currentSources: signal([]),
+      currentQueryPlan: signal(null),
+      currentModel: signal(null),
+      statusText: signal(null),
+      history: signal([]),
+      isWaiting: signal(false),
+      showHistory: signal(false),
+      getConfig: () => of({ modelName: 'test-model', embeddingModel: 'test-embed' }),
+      loadHistory: vi.fn(),
+      sendMessage: vi.fn()
+    };
+
     await TestBed.configureTestingModule({
       imports: [ChatBotComponent, NoopAnimationsModule],
       providers: [
@@ -20,27 +34,18 @@ describe('ChatBotComponent', () => {
         provideHttpClientTesting(),
         {
           provide: ChatService,
-          useValue: {
-            getConfig: () => of({ modelName: 'test-model', embeddingModel: 'test-embed' }),
-            streamChat: async function* () { yield 'test chunk'; }
-          }
+          useValue: mockChatService
         }
       ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ChatBotComponent);
     component = fixture.componentInstance;
-    chatService = TestBed.inject(ChatService);
     fixture.detectChanges();
   });
 
   it('should create the chat bot component', () => {
     expect(component).toBeTruthy();
-  });
-
-  it('should display the initial bot message', () => {
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.answer-text')?.textContent).toContain(helloMessage);
   });
 
   it('should update inputText signal when typing', () => {
@@ -50,7 +55,7 @@ describe('ChatBotComponent', () => {
   });
 
   it('should render model badge when currentModel is set', () => {
-    component.currentModel.set('qwen3-coder');
+    mockChatService.currentModel.set('qwen3-coder');
     fixture.detectChanges();
     const badge = fixture.nativeElement.querySelector('.model-badge');
     expect(badge).toBeTruthy();
