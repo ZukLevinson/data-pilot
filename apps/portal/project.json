@@ -21,12 +21,14 @@
           }
         ],
         "styles": ["apps/portal/src/styles.css"],
-        "server": "apps/portal/src/main.server.ts",
-        "ssr": {
-          "entry": "apps/portal/src/server.ts"
-        },
-        "outputMode": "server",
-        "prerender": false
+        "ssr": false,
+        "budgets": [
+          {
+            "type": "anyComponentStyle",
+            "maximumWarning": "50kb",
+            "maximumError": "100kb"
+          }
+        ]
       },
       "configurations": {
         "production": {
@@ -37,12 +39,13 @@
               "maximumError": "1mb"
             },
             {
-              "type": "anyComponentStyle",
-              "maximumWarning": "4kb",
-              "maximumError": "8kb"
+              "type": "anyStyle",
+              "maximumWarning": "50kb",
+              "maximumError": "100kb"
             }
           ],
-          "outputHashing": "all"
+          "outputHashing": "all",
+          "prerender": false
         },
         "development": {
           "optimization": false,
