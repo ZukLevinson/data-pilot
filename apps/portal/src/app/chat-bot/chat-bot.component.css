@@ -54,7 +54,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  max-width: 80%;
+  max-width: 90%;
 }
 
 .message-wrapper.user {
@@ -63,17 +63,84 @@
 }
 
 .message-bubble {
-  padding: 0.625rem 0.875rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
+  max-width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  font-size: 0.95rem;
   line-height: 1.4;
-  color: #1e3a8a; /* Deep blue */
-  background-color: #eff6ff; /* Soft blue */
+  position: relative;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.thought-process {
+  background: rgba(0, 0, 0, 0.03);
+  border-right: 2px solid #888;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #666;
+  font-style: italic;
+  animation: fadeIn 0.3s ease;
+}
+
+.thought-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.answer-text {
+  color: #2c3e50;
+  white-space: pre-wrap;
+}
+
+/* Typing Indicator */
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.typing-indicator span {
+  width: 6px;
+  height: 6px;
+  background: #cbd5e0;
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+.typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1.0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .message-wrapper.user .message-bubble {
-  background-color: #3b82f6; /* Pure blue */
-  color: #ffffff;
+  background-color: #f0f7ff; /* Subtle light blue tint */
+  color: #007bff;
+  border: 1.5px solid #007bff;
+  border-bottom-left-radius: 2px;
+}
+
+.message-wrapper:not(.user) .message-bubble {
+  background-color: #f1f3f5; /* Slightly darker/bolder gray */
+  color: #202124;
+  border: 1px solid #e2e8f0;
+  border-bottom-right-radius: 2px;
 }
 
 .message-time {

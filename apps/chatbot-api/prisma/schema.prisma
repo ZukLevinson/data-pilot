@@ -36,7 +36,7 @@ model Entity {
   type      String
   // Using pgvector's vector type, assuming 1536 dimensions (e.g., from an embedding model, Qwen usually 4096 or 1536 depending on the embedding model used, let's use unsupported("vector") for custom dimensions or Prisma's native support if available)
   // Currently Prisma supports Unsupported("vector(1536)")
-  embedding Unsupported("vector(1536)")?
+  embedding Unsupported("vector(768)")?
   tags      EntityTag[]
 }
 

@@ -15,7 +15,22 @@
     @for (message of messages(); track message.id) {
       <div class="message-wrapper" [class.user]="message.sender === 'user'">
         <div class="message-bubble">
-          {{ message.text }}
+          <!-- Thinking Section -->
+          <div *ngIf="message.thought" class="thought-process">
+            <div class="thought-header">
+              <i class="pi pi-sparkles"></i>
+              <span>Reasoning...</span>
+            </div>
+            <div class="thought-text">{{ message.thought }}</div>
+          </div>
+          
+          <!-- Actual Answer -->
+          <div *ngIf="message.text" class="answer-text">{{ message.text }}</div>
+          
+          <!-- Typing Indicator if no text and no thought yet -->
+          <div *ngIf="!message.text && !message.thought && isWaiting()" class="typing-indicator">
+            <span></span><span></span><span></span>
+          </div>
         </div>
         <div class="message-time">
           {{ message.timestamp | date:'HH:mm' }}
