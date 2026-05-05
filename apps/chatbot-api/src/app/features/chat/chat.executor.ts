@@ -18,7 +18,9 @@ export class ChatExecutor {
       const where: Prisma.MineWhereInput = {};
       activeWhere = where;
       if (queryPlan.conditions?.name) {
-        where.name = { contains: queryPlan.conditions.name.value, mode: 'insensitive' };
+        const cond = queryPlan.conditions.name;
+        const val = typeof cond === 'object' && cond !== null && 'value' in cond ? cond.value : cond;
+        where.name = { contains: String(val), mode: 'insensitive' };
       }
       const clusterConds = Array.isArray(queryPlan.clusterConditions) 
         ? queryPlan.clusterConditions 
@@ -60,8 +62,11 @@ export class ChatExecutor {
             );
             const ids = matchingMineIds.map(m => m.mine_id);
             if (!where.id) where.id = { in: ids };
-            else {
-               where.id.in = where.id.in.filter((id: string) => ids.includes(id));
+            else if (typeof where.id === 'object' && where.id !== null && 'in' in where.id) {
+               const currentIn = where.id.in;
+               if (Array.isArray(currentIn)) {
+                 where.id.in = currentIn.filter((id: string) => ids.includes(id));
+               }
             }
           }
         }
@@ -77,7 +82,9 @@ export class ChatExecutor {
       const whereClauses: string[] = [];
 
       if (queryPlan.conditions?.name) {
-        whereClauses.push(`"Mine".name ILIKE '%${queryPlan.conditions.name.value}%'`);
+        const cond = queryPlan.conditions.name;
+        const val = typeof cond === 'object' && cond !== null && 'value' in cond ? cond.value : cond;
+        whereClauses.push(`"Mine".name ILIKE '%${val}%'`);
       }
 
       if (clusterConds.length > 0) {
@@ -116,14 +123,17 @@ export class ChatExecutor {
       const where: Prisma.ClusterWhereInput = {};
       activeWhere = where;
       if (queryPlan.conditions?.stoneType) {
-        where.stoneType = { contains: String(queryPlan.conditions.stoneType.value), mode: 'insensitive' };
+        const cond = queryPlan.conditions.stoneType;
+        const val = typeof cond === 'object' && cond !== null && 'value' in cond ? cond.value : cond;
+        where.stoneType = { contains: String(val), mode: 'insensitive' };
       }
       if (queryPlan.conditions?.quantity) {
         const q = queryPlan.conditions.quantity;
-        const op = q.operator;
-        const val = Number(q.value);
+        const op = typeof q === 'object' && q !== null && 'operator' in q ? q.operator : 'equals';
+        const val = Number(typeof q === 'object' && q !== null && 'value' in q ? q.value : q);
         if (op === 'gt') where.quantity = { gt: val };
         if (op === 'lt') where.quantity = { lt: val };
+        if (op === 'equals') where.quantity = { equals: val };
       }
       
       const clusters = await this.prisma.cluster.findMany({ 
@@ -149,19 +159,22 @@ export class ChatExecutor {
         }));
       }
       queryPlan.totalCount = totalCount;
-      queryPlan.generatedSql = `SELECT count(*) FROM "Cluster" ${queryPlan.conditions?.stoneType ? `WHERE stone_type ILIKE '%${queryPlan.conditions.stoneType.value}%'` : ''}`;
+      const stoneCond = queryPlan.conditions?.stoneType;
+      const stoneVal = typeof stoneCond === 'object' && stoneCond !== null && 'value' in stoneCond ? stoneCond.value : stoneCond;
+      queryPlan.generatedSql = `SELECT count(*) FROM "Cluster" ${stoneVal ? `WHERE stone_type ILIKE '%${stoneVal}%'` : ''}`;
     } else if (queryPlan.target === 'DrillMission') {
       const where: Prisma.DrillMissionWhereInput = {};
       activeWhere = where;
       if (queryPlan.conditions?.date) {
         const q = queryPlan.conditions.date;
-        const op = q.operator;
-        const val = new Date(q.value);
+        const op = typeof q === 'object' && q !== null && 'operator' in q ? q.operator : 'after';
+        const val = new Date(String(typeof q === 'object' && q !== null && 'value' in q ? q.value : q));
         if (op === 'after') where.date = { gt: val };
         if (op === 'before') where.date = { lt: val };
       }
       if (queryPlan.mineConditions?.name) {
-        where.mine = { name: { contains: String(queryPlan.mineConditions.name.value), mode: 'insensitive' } };
+        const q = queryPlan.mineConditions.name;
+        where.mine = { name: { contains: String(q.value), mode: 'insensitive' } };
       }
       
       const clusterConds = Array.isArray(queryPlan.clusterConditions) 
@@ -206,7 +219,9 @@ export class ChatExecutor {
         distance: 0
       }));
       queryPlan.totalCount = totalCount;
-      queryPlan.generatedSql = `SELECT count(*) FROM "DrillMission" INNER JOIN "Mine" ON "DrillMission".mine_id = "Mine".id ${queryPlan.mineConditions?.name ? `WHERE "Mine".name ILIKE '%${queryPlan.mineConditions.name.value}%'` : ''}`;
+      const mineNameCond = queryPlan.mineConditions?.name;
+      const mineNameVal = mineNameCond ? (typeof mineNameCond === 'object' && 'value' in mineNameCond ? mineNameCond.value : mineNameCond) : '';
+      queryPlan.generatedSql = `SELECT count(*) FROM "DrillMission" INNER JOIN "Mine" ON "DrillMission".mine_id = "Mine".id ${mineNameVal ? `WHERE "Mine".name ILIKE '%${mineNameVal}%'` : ''}`;
     }
 
     // Handle Aggregations
@@ -219,9 +234,11 @@ export class ChatExecutor {
             where: aggWhere,
             [`_${agg.type}`]: { [agg.field]: true }
           } as any);
+          const resultObj = result as Record<string, Record<string, unknown>>;
           const aggKey = `_${agg.type}`;
           const fieldKey = agg.field;
-          aggregationResults[`${agg.type}_${agg.field}`] = (result as Record<string, Record<string, number>>)[aggKey][fieldKey];
+          const val = resultObj[aggKey]?.[fieldKey];
+          aggregationResults[`${agg.type}_${agg.field}`] = typeof val === 'number' ? val : 0;
         }
       }
       queryPlan.aggregationResults = aggregationResults;
