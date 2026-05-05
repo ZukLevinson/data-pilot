@@ -5,6 +5,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ChatService } from './chat.service';
 import { of } from 'rxjs';
+import { helloMessage } from '@org/portal/shared-ui';
 
 describe('ChatBotComponent', () => {
   let component: ChatBotComponent;
@@ -39,7 +40,7 @@ describe('ChatBotComponent', () => {
 
   it('should display the initial bot message', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.answer-text')?.textContent).toContain('שלום! איך אני יכול לעזור לך היום?');
+    expect(compiled.querySelector('.answer-text')?.textContent).toContain(helloMessage);
   });
 
   it('should update inputText signal when typing', () => {

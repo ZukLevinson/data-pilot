@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService } from './chat.service';
 import { ChatMessage, EntitySearchResult } from '@org/models';
+import { helloMessage } from '@org/portal/shared-ui';
 import { Textarea } from 'primeng/textarea';
 import { Button } from 'primeng/button';
 import { Badge } from 'primeng/badge';
@@ -27,19 +28,7 @@ export class ChatBotComponent {
     id: 0,
     sender: 'bot',
     timestamp: new Date(),
-    text: `**שלום! אני Data Pilot 🗺️**
-
-אני עוזר GIS חכם שיכול לעזור לך לחקור ולהציג ישויות גיאוגרפיות על המפה.
-
-**מה אני יכול לעשות:**
-- הצג אזורים על המפה לפי סוג, צבע או שם
-- ענה על שאלות כמותיות ("כמה אזורים אדומים יש?")
-- סנן לפי מיקום ("הצג עיגולים בתל אביב")
-
-**דוגמאות לשאילתות:**
-- *"הצג 10 אזורים"*
-- *"כמה עיגולים יש במערכת?"*
-- *"הצג את כל האזורים האדומים"*`
+    text: helloMessage
   }]);
   inputText = signal<string>('');
   isWaiting = signal<boolean>(false);
