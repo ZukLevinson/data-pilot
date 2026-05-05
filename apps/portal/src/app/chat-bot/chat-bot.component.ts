@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, signal, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, ChangeDetectionStrategy, signal, inject, ChangeDetectorRef, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
@@ -9,9 +9,10 @@ import { HttpClient } from '@angular/common/http';
 interface Message {
   id: number;
   text: string;
-  thought?: string; // New: stores the reasoning/thinking process
-  sender: 'user' | 'bot';
+  thought?: string;
+  sender: 'user' | 'bot' | 'system';
   timestamp: Date;
+  isError?: boolean; // New: flag for error messages in conversation
 }
 
 @Component({
@@ -22,9 +23,11 @@ interface Message {
   styleUrls: ['./chat-bot.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ChatBotComponent {
+export class ChatBotComponent implements AfterViewInit {
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
+
+  @ViewChild('messageInput') messageInput!: ElementRef<HTMLTextAreaElement>;
 
   messages = signal<Message[]>([
     {
@@ -38,10 +41,20 @@ export class ChatBotComponent {
   inputText = signal('');
   isWaiting = signal(false);
 
+  ngAfterViewInit() {
+    this.focusInput();
+  }
+
+  private focusInput() {
+    setTimeout(() => {
+      this.messageInput?.nativeElement?.focus();
+    }, 100);
+  }
+
   async sendMessage() {
     const text = this.inputText().trim();
     if (!text || this.isWaiting()) return;
-
+    
     const userMessageId = Date.now();
     this.messages.update(msgs => [...msgs, {
       id: userMessageId,
@@ -52,6 +65,7 @@ export class ChatBotComponent {
 
     this.inputText.set('');
     this.isWaiting.set(true);
+    this.focusInput();
 
     const botMessageId = Date.now() + 1;
     this.messages.update(msgs => [...msgs, {
@@ -63,7 +77,6 @@ export class ChatBotComponent {
     }]);
 
     try {
-      // Using fetch for POST streaming
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -72,6 +85,10 @@ export class ChatBotComponent {
           question: text
         })
       });
+
+      if (!response.ok) {
+        throw new Error('השרת אינו זמין כרגע.');
+      }
 
       if (!response.body) throw new Error('No response body');
       
@@ -84,43 +101,39 @@ export class ChatBotComponent {
         if (done) break;
         
         const chunk = decoder.decode(value, { stream: true });
-        
-        // SSE chunks start with "data: "
         const lines = chunk.split('\n');
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            try {
-              const data = line.replace('data: ', '');
-              if (!data && line !== 'data: ') continue;
-              
-              fullContent += data;
-              
-              // Parse <think> tags
-              let thought = '';
-              let answer = fullContent;
-              
-              const thinkMatch = fullContent.match(/<think>([\s\S]*?)<\/think>/);
-              if (thinkMatch) {
-                thought = thinkMatch[1];
-                answer = fullContent.replace(/<think>[\s\S]*?<\/think>/, '').trim();
-              } else if (fullContent.includes('<think>')) {
-                // Currently thinking (tag not closed yet)
-                thought = fullContent.split('<think>')[1];
-                answer = '';
-              }
+            const data = line.replace('data: ', '');
+            if (!data && line !== 'data: ') continue;
+            fullContent += data;
+            
+            let thought = '';
+            let answer = fullContent;
+            const thinkMatch = fullContent.match(/<think>([\s\S]*?)<\/think>/);
+            if (thinkMatch) {
+              thought = thinkMatch[1];
+              answer = fullContent.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+            } else if (fullContent.includes('<think>')) {
+              thought = fullContent.split('<think>')[1];
+              answer = '';
+            }
 
-              this.messages.update(msgs => msgs.map(m => 
-                m.id === botMessageId ? { ...m, text: answer, thought: thought } : m
-              ));
-              this.cdr.detectChanges();
-            } catch (e) { /* skip partial JSON */ }
+            this.messages.update(msgs => msgs.map(m => 
+              m.id === botMessageId ? { ...m, text: answer, thought: thought } : m
+            ));
+            this.cdr.detectChanges();
           }
         }
       }
     } catch (err) {
       console.error('Streaming Error:', err);
       this.messages.update(msgs => msgs.map(m => 
-        m.id === botMessageId ? { ...m, text: 'מצטער, אירעה שגיאה בחיבור לשרת.' } : m
+        m.id === botMessageId ? { 
+          ...m, 
+          text: 'אופס! נראה שיש לי תקלה קלה בחיבור. אנא נסו שוב בעוד רגע.',
+          isError: true 
+        } : m
       ));
     } finally {
       this.isWaiting.set(false);

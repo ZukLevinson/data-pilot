@@ -222,3 +222,14 @@
   box-shadow: none !important;
   transform: none !important;
 }
+
+.message-bubble.error {
+  background-color: #fef2f2 !important;
+  color: #b91c1c !important;
+  border: 1px solid #fee2e2 !important;
+}
+
+.message-bubble.error .answer-text {
+  color: #b91c1c !important;
+  font-weight: 500;
+}

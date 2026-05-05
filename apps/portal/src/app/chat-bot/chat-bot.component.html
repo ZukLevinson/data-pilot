@@ -14,7 +14,7 @@
   <div class="chat-messages">
     @for (message of messages(); track message.id) {
       <div class="message-wrapper" [class.user]="message.sender === 'user'">
-        <div class="message-bubble">
+        <div class="message-bubble" [class.error]="message.isError">
           <!-- Thinking Section -->
           <div *ngIf="message.thought" class="thought-process">
             <div class="thought-header">
@@ -43,7 +43,9 @@
   <div class="chat-input-area">
     <form (ngSubmit)="sendMessage()" class="input-form">
       <textarea 
+        #messageInput
         pInputTextarea
+        autofocus
         [autoResize]="true"
         rows="1"
         [ngModel]="inputText()" 
