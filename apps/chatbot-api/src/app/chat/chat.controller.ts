@@ -15,6 +15,11 @@ export class ChatController {
     };
   }
 
+  @Get('initial')
+  async getInitialData() {
+    return this.chatService.getInitialData();
+  }
+
   @Post()
   async handleChat(@Body() body: ChatRequest): Promise<ChatResponse> {
     if (!body.userId || !body.question) {

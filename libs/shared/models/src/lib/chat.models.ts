@@ -9,6 +9,7 @@ export interface ChatMessage {
   isError?: boolean;
   sources?: EntitySearchResult[];
   status?: string;
+  queryPlan?: any;
 }
 
 export interface ChatRequest {
@@ -26,6 +27,7 @@ export interface ChatStreamChunk {
   status?: string;
   sources?: EntitySearchResult[];
   mode?: 'replace' | 'append';
+  queryPlan?: any;
 }
 
 export interface AppConfig {

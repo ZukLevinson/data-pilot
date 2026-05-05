@@ -8,90 +8,76 @@ async function main() {
   const adapter = new PrismaPg(pool);
   const prisma = new PrismaClient({ adapter });
 
+  const TOTAL_MINES = 500000;
+  const AVG_CLUSTERS_PER_MINE = 50;
+  const BATCH_SIZE = 100; // Mines per batch
+
+  const stoneTypes = ['Neodymium', 'Dysprosium', 'Europium', 'Lanthanum', 'Cerium', 'Praseodymium', 'Terbium', 'Yttrium'];
+
+  console.log(`Starting massive seed: ${TOTAL_MINES} mines, ~${TOTAL_MINES * AVG_CLUSTERS_PER_MINE} clusters...`);
+
   try {
     console.log('Cleaning up database...');
-    await prisma.drillMission.deleteMany();
-    await prisma.cluster.deleteMany();
-    await prisma.drill.deleteMany();
-    await prisma.mine.deleteMany();
+    await prisma.$executeRawUnsafe('TRUNCATE TABLE "SavedQuery", "DrillMission", "Cluster", "Mine", "Drill" RESTART IDENTITY CASCADE');
 
-    console.log('Seeding Mines...');
-    const mine1Id = '417b3f9c-738b-4a53-8557-0b1a0391d1e4';
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO "Mine" (id, name, geom, created_at)
-      VALUES ('${mine1Id}', 'Negev North Mine', 
-              ST_GeomFromText('POLYGON((34.7 31.2, 34.9 31.2, 34.9 31.4, 34.7 31.4, 34.7 31.2))', 4326),
-              NOW())
-    `);
-
-    const mine2Id = '5a8b3f9c-738b-4a53-8557-0b1a0391d1e5';
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO "Mine" (id, name, geom, created_at)
-      VALUES ('${mine2Id}', 'Arava Southern Mine', 
-              ST_GeomFromText('POLYGON((34.9 29.5, 35.1 29.5, 35.1 29.7, 34.9 29.7, 34.9 29.5))', 4326),
-              NOW())
-    `);
-
-    console.log('Seeding Clusters...');
-    const cluster1Id = '6b9c3f9c-738b-4a53-8557-0b1a0391d1e6';
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO "Cluster" (id, stone_type, quantity, geom, mine_id, created_at)
-      VALUES ('${cluster1Id}', 'Neodymium', 1500.5, 
-              ST_GeomFromText('POINT(34.8 31.3)', 4326),
-              '${mine1Id}', NOW())
-    `);
-
-    const cluster2Id = '7c0d3f9c-738b-4a53-8557-0b1a0391d1e7';
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO "Cluster" (id, stone_type, quantity, geom, mine_id, created_at)
-      VALUES ('${cluster2Id}', 'Dysprosium', 450.2, 
-              ST_GeomFromText('POINT(34.85 31.35)', 4326),
-              '${mine1Id}', NOW())
-    `);
-
-    const cluster3Id = '8d1e3f9c-738b-4a53-8557-0b1a0391d1e8';
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO "Cluster" (id, stone_type, quantity, geom, mine_id, created_at)
-      VALUES ('${cluster3Id}', 'Europium', 250.8, 
-              ST_GeomFromText('POINT(35.0 29.6)', 4326),
-              '${mine2Id}', NOW())
-    `);
-
-    console.log('Seeding Drills...');
-    const drill1 = await prisma.drill.create({
-      data: {
-        name: 'Titan-X1',
-        supportedStoneTypes: ['Neodymium', 'Dysprosium']
-      }
+    console.log('Inserting Drills...');
+    await prisma.drill.createMany({
+      data: [
+        { name: 'WorldDriller-8000', supportedStoneTypes: stoneTypes.slice(0, 4) },
+        { name: 'DeepMiner-X', supportedStoneTypes: stoneTypes.slice(4) }
+      ]
     });
 
-    const drill2 = await prisma.drill.create({
-      data: {
-        name: 'GeoExplorer-Pro',
-        supportedStoneTypes: ['Europium', 'Lanthanum', 'Cerium']
-      }
-    });
+    for (let i = 0; i < TOTAL_MINES; i += BATCH_SIZE) {
+      const currentBatchSize = Math.min(BATCH_SIZE, TOTAL_MINES - i);
+      
+      const mineValues: string[] = [];
+      const clusterValues: string[] = [];
+      
+      for (let j = 0; j < currentBatchSize; j++) {
+        const mineId = crypto.randomUUID();
+        const mineName = `French-Mine-${i + j}`;
+        
+        // France Mainland Bounding Box
+        const lon = -4.5 + Math.random() * 12.5; // From -4.5 to 8.0
+        const lat = 42.0 + Math.random() * 9.0;  // From 42.0 to 51.0
+        
+        const mineSize = 0.002; 
+        const poly = `POLYGON((${lon - mineSize/2} ${lat - mineSize/2}, ${lon + mineSize/2} ${lat - mineSize/2}, ${lon + mineSize/2} ${lat + mineSize/2}, ${lon - mineSize/2} ${lat + mineSize/2}, ${lon - mineSize/2} ${lat - mineSize/2}))`;
+        mineValues.push(`('${mineId}', '${mineName}', ST_GeomFromText('${poly}', 4326), NOW())`);
 
-    console.log('Seeding Drill Missions...');
-    await prisma.drillMission.create({
-      data: {
-        mineId: mine1Id,
-        drillId: drill1.id,
-        stoneType: 'Neodymium',
-        date: new Date('2026-06-01T08:00:00Z')
+        const clusterCount = Math.floor(Math.random() * 20) + 40; 
+        const clusterSpread = mineSize * 0.7; // Fixed: Now relative to the actual mine size
+        for (let k = 0; k < clusterCount; k++) {
+          const clusterId = crypto.randomUUID();
+          const stoneType = stoneTypes[Math.floor(Math.random() * stoneTypes.length)];
+          const quantity = Math.floor(Math.random() * 450000) + 50000;
+          
+          // Generate within [-0.015, 0.015] relative to center
+          const cLon = lon + (Math.random() * clusterSpread - clusterSpread/2);
+          const cLat = lat + (Math.random() * clusterSpread - clusterSpread/2);
+          
+          clusterValues.push(`('${clusterId}', '${stoneType}', ${quantity}, ST_GeomFromText('POINT(${cLon} ${cLat})', 4326), '${mineId}', NOW())`);
+        }
       }
-    });
 
-    await prisma.drillMission.create({
-      data: {
-        mineId: mine2Id,
-        drillId: drill2.id,
-        stoneType: 'Europium',
-        date: new Date('2026-07-15T09:00:00Z')
+      await prisma.$executeRawUnsafe(`INSERT INTO "Mine" (id, name, geom, created_at) VALUES ${mineValues.join(',')}`);
+      
+      // Clusters can be very large, split cluster inserts into smaller chunks
+      const clusterSubBatchSize = 1000;
+      for (let k = 0; k < clusterValues.length; k += clusterSubBatchSize) {
+        const subBatch = clusterValues.slice(k, k + clusterSubBatchSize);
+        await prisma.$executeRawUnsafe(`INSERT INTO "Cluster" (id, stone_type, quantity, geom, mine_id, created_at) VALUES ${subBatch.join(',')}`);
       }
-    });
+
+      if ((i + currentBatchSize) % 1000 === 0) {
+        console.log(`Progress: ${i + currentBatchSize} mines inserted...`);
+      }
+    }
 
     console.log('Seed completed successfully.');
+  } catch (error) {
+    console.error('Seed failed:', error);
   } finally {
     await prisma.$disconnect();
     await pool.end();

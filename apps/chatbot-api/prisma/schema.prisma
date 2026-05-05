@@ -9,12 +9,10 @@ datasource db {
 }
 
 model Mine {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String                   @id @default(uuid()) @db.Uuid
   name      String
-  // Geographic boundary (Polygon)
-  geom      Unsupported("geometry(Polygon, 4326)")?
-  createdAt DateTime @default(now()) @map("created_at")
-  
+  geom      Unsupported("geometry")?
+  createdAt DateTime                 @default(now()) @map("created_at")
   clusters  Cluster[]
   missions  DrillMission[]
 
@@ -22,44 +20,36 @@ model Mine {
 }
 
 model Cluster {
-  id        String   @id @default(uuid()) @db.Uuid
-  stoneType String   @map("stone_type")
+  id        String                   @id @default(uuid()) @db.Uuid
+  stoneType String                   @map("stone_type")
   quantity  Float
-  // Geographic location (Point)
-  geom      Unsupported("geometry(Point, 4326)")?
-  
-  mineId    String   @db.Uuid @map("mine_id")
-  mine      Mine     @relation(fields: [mineId], references: [id])
-  
-  createdAt DateTime @default(now()) @map("created_at")
+  geom      Unsupported("geometry")?
+  mineId    String                   @map("mine_id") @db.Uuid
+  createdAt DateTime                 @default(now()) @map("created_at")
+  mine      Mine                     @relation(fields: [mineId], references: [id])
 
   @@map("Cluster")
 }
 
 model Drill {
-  id                 String   @id @default(uuid()) @db.Uuid
-  name               String
-  supportedStoneTypes String[] @map("supported_stone_types")
-  
-  createdAt          DateTime @default(now()) @map("created_at")
-  missions           DrillMission[]
+  id                  String         @id @default(uuid()) @db.Uuid
+  name                String
+  supportedStoneTypes String[]       @map("supported_stone_types")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  missions            DrillMission[]
 
   @@map("Drill")
 }
 
 model DrillMission {
   id        String   @id @default(uuid()) @db.Uuid
-  
-  mineId    String   @db.Uuid @map("mine_id")
-  mine      Mine     @relation(fields: [mineId], references: [id])
-  
-  drillId   String   @db.Uuid @map("drill_id")
-  drill     Drill    @relation(fields: [drillId], references: [id])
-  
+  mineId    String   @map("mine_id") @db.Uuid
+  drillId   String   @map("drill_id") @db.Uuid
   stoneType String   @map("stone_type")
   date      DateTime
-  
   createdAt DateTime @default(now()) @map("created_at")
+  drill     Drill    @relation(fields: [drillId], references: [id])
+  mine      Mine     @relation(fields: [mineId], references: [id])
 
   @@map("DrillMission")
 }
@@ -67,9 +57,18 @@ model DrillMission {
 model SavedQuery {
   id        String   @id @default(uuid()) @db.Uuid
   name      String?
-  query     Json     // Stored query structure (JSON)
-  sql       String?  // The generated SQL string for transparency
+  query     Json
+  sql       String?
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("SavedQuery")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model spatial_ref_sys {
+  srid      Int     @id
+  auth_name String? @db.VarChar(256)
+  auth_srid Int?
+  srtext    String? @db.VarChar(2048)
+  proj4text String? @db.VarChar(2048)
 }

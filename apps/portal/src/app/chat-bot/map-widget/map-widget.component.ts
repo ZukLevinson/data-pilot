@@ -64,8 +64,13 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
   }
 
   private updateLayers() {
-    if (!this.map || !this.L) return;
+    if (!this.map || !this.L) {
+      console.log('Map or Leaflet not ready for updateLayers');
+      return;
+    }
     const L = this.L;
+
+    console.log(`Updating map with ${this.sources.length} sources`);
 
     if (this.geoJsonLayer) {
       this.map.removeLayer(this.geoJsonLayer);
@@ -93,18 +98,52 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
         } catch (e) {
           console.error('Failed to parse WKT:', source.wkt, e);
         }
+      } else {
+        console.warn('Source missing WKT:', source);
       }
     });
 
     if (geoJsonFeatures.length > 0) {
+      console.log(`Adding ${geoJsonFeatures.length} features to map`);
       this.geoJsonLayer = L.geoJSON(geoJsonFeatures as any, {
-        style: (feature: any) => ({
-          color: feature.properties.color || '#3b82f6',
-          weight: 4,
-          opacity: 0.9,
-          fillOpacity: 0.3
-        }),
+        style: (feature: any) => {
+          const isMine = feature.properties.type === 'Mine';
+          return {
+            color: isMine ? '#1e3a8a' : (feature.properties.color || '#3b82f6'),
+            weight: isMine ? 5 : 1,
+            opacity: isMine ? 1 : 0.6,
+            fillColor: feature.properties.color || '#3b82f6',
+            fillOpacity: isMine ? 0.6 : 0.2,
+          };
+        },
         pointToLayer: (feature: any, latlng: any) => {
+          const type = feature.properties.type;
+          
+          if (type === 'Cluster') {
+            const icon = L.divIcon({
+              className: 'cluster-icon',
+              html: `
+                <div style="
+                  background-color: ${feature.properties.color || '#f59e0b'};
+                  color: white;
+                  width: 24px;
+                  height: 24px;
+                  border-radius: 50%;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  border: 2px solid white;
+                  box-shadow: 0 0 10px rgba(0,0,0,0.4);
+                ">
+                  <i class="pi pi-database" style="font-size: 12px;"></i>
+                </div>
+              `,
+              iconSize: [24, 24],
+              iconAnchor: [12, 12]
+            });
+            return L.marker(latlng, { icon });
+          }
+
           return L.circleMarker(latlng, {
             radius: 8,
             fillColor: feature.properties.color || '#3b82f6',
@@ -120,6 +159,8 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
       if (bounds.isValid()) {
         this.map.fitBounds(bounds, { padding: [20, 20] });
       }
+    } else {
+      console.warn('No GeoJSON features generated from sources');
     }
   }
 }

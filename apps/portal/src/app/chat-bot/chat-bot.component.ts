@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, signal, inject } from '@angular/core';
+import { Component, ElementRef, ViewChild, signal, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService } from './chat.service';
@@ -18,7 +18,7 @@ import { MarkdownPipe } from './markdown.pipe';
   templateUrl: './chat-bot.component.html',
   styleUrls: ['./chat-bot.component.css']
 })
-export class ChatBotComponent {
+export class ChatBotComponent implements OnInit {
   private chatService = inject(ChatService);
   
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
@@ -33,8 +33,25 @@ export class ChatBotComponent {
   inputText = signal<string>('');
   isWaiting = signal<boolean>(false);
   currentSources = signal<EntitySearchResult[]>([]);
+  currentQueryPlan = signal<any | null>(null);
   currentModel = signal<string | null>(null);
   statusText = signal<string | null>(null);
+
+  async ngOnInit() {
+    this.loadInitialData();
+  }
+
+  private async loadInitialData() {
+    try {
+      this.statusText.set('טוען נתונים גלובליים...');
+      const data = await this.chatService.getInitialData();
+      this.currentSources.set(data);
+      this.statusText.set(null);
+    } catch (error) {
+      console.error('Failed to load initial data', error);
+      this.statusText.set(null);
+    }
+  }
 
   handleKeyPress(event: KeyboardEvent) {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -76,6 +93,13 @@ export class ChatBotComponent {
           this.statusText.set(chunk.status);
           this.messages.update(msgs => msgs.map(m => 
             m.id === botMessageId ? { ...m, status: chunk.status } : m
+          ));
+        }
+
+        if (chunk.queryPlan) {
+          this.currentQueryPlan.set(chunk.queryPlan);
+          this.messages.update(msgs => msgs.map(m => 
+            m.id === botMessageId ? { ...m, queryPlan: chunk.queryPlan } : m
           ));
         }
 

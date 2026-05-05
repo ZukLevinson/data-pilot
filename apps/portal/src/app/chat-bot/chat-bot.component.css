@@ -422,3 +422,45 @@ app-map-widget {
   margin: 0.5rem 0 0.25rem;
   color: #0f172a;
 }
+
+/* Query Plan Inspector */
+.query-plan-inspector {
+  background: rgba(248, 250, 252, 0.8);
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  margin: 12px 0;
+  overflow: hidden;
+  font-family: "Inter", sans-serif;
+}
+
+.plan-header {
+  background: #f1f5f9;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.plan-header i {
+  font-size: 0.875rem;
+  color: #3b82f6;
+}
+
+.plan-json {
+  margin: 0;
+  padding: 12px;
+  font-size: 0.75rem;
+  color: #334155;
+  background: #fff;
+  max-height: 200px;
+  overflow-y: auto;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

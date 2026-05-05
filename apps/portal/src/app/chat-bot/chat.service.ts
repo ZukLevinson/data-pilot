@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { AppConfig, ChatRequest, ChatStreamChunk } from '@org/models';
+import { AppConfig, ChatRequest, ChatStreamChunk, EntitySearchResult } from '@org/models';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class ChatService {
@@ -8,6 +9,10 @@ export class ChatService {
 
   getConfig() {
     return this.http.get<AppConfig>('/api/chat/config');
+  }
+
+  getInitialData(): Promise<EntitySearchResult[]> {
+    return firstValueFrom(this.http.get<EntitySearchResult[]>('/api/chat/initial'));
   }
 
   async *streamChat(request: ChatRequest): AsyncIterable<ChatStreamChunk> {
@@ -27,21 +32,27 @@ export class ChatService {
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    let buffer = '';
 
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
       
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      
+      // The last element might be a partial line, keep it in the buffer
+      buffer = lines.pop() || '';
+      
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.replace('data: ', '')) as ChatStreamChunk;
-            yield data;
-          } catch (e) {
-            console.error('Failed to parse stream chunk', e);
-          }
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+        
+        try {
+          const data = JSON.parse(trimmed.replace('data: ', '')) as ChatStreamChunk;
+          yield data;
+        } catch (e) {
+          console.error('Failed to parse stream chunk. Buffer size:', trimmed.length, e);
         }
       }
     }
