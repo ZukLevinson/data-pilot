@@ -25,7 +25,8 @@
         "ssr": {
           "entry": "apps/portal/src/server.ts"
         },
-        "outputMode": "server"
+        "outputMode": "server",
+        "prerender": false
       },
       "configurations": {
         "production": {
