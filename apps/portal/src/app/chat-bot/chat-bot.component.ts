@@ -58,19 +58,7 @@ export class ChatBotComponent implements OnInit {
   }
 
   async ngOnInit() {
-    this.loadInitialData();
-  }
-
-  private async loadInitialData() {
-    try {
-      this.statusText.set('טוען נתונים גלובליים...');
-      const data = await this.chatService.getInitialData();
-      this.currentSources.set(data);
-      this.statusText.set(null);
-    } catch (error) {
-      console.error('Failed to load initial data', error);
-      this.statusText.set(null);
-    }
+    // Start with a clean map, no initial load of 5000 entities
   }
 
   handleKeyPress(event: KeyboardEvent) {
@@ -94,6 +82,8 @@ export class ChatBotComponent implements OnInit {
 
     this.inputText.set('');
     this.isWaiting.set(true);
+    this.currentSources.set([]);
+    this.currentQueryPlan.set(null);
     this.scrollToBottom();
 
     const botMessageId = Date.now() + 1;

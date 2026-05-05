@@ -178,7 +178,8 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
         this.map.fitBounds(bounds, { padding: [20, 20] });
       }
     } else {
-      console.warn('No GeoJSON features generated from sources');
+      console.warn('No GeoJSON features generated from sources - Clearing Layer');
+      this.geoJsonLayer = undefined;
     }
   }
 }

@@ -79,7 +79,7 @@ Structure:
   1. If the user asks for "משימות" or "משימות קידוח" (Drill Missions), the target MUST be "DrillMission".
   2. If the user asks for "מכרות" (Mines), the target is "Mine".
   3. If the user asks for "מקבצים" (Clusters), the target is "Cluster".
-  4. Relational filtering: If the target is "DrillMission" but filtered by Mine or Cluster properties, keep target as "DrillMission" and use mineConditions/clusterConditions.
+  4. Relational filtering: If target is "DrillMission", "mineConditions" filters the mine it's in, and "clusterConditions" filters the clusters of that specific mine.
 - Hebrew mappings: מכרה = Mine, מקבץ = Cluster, משימה = DrillMission.
 
 Important:
@@ -88,7 +88,9 @@ Important:
 3. Use "stoneType" (exactly) for mineral names. 
 4. ALWAYS use the English technical name for minerals even if the user asks in Hebrew.
 5. Output ONLY valid JSON.
-6. Example: "משימות קידוח במכרות עם Neodymium" -> target: "DrillMission", clusterConditions: { stoneType: "Neodymium" }`;
+6. Example: "משימות קידוח במכרות עם Neodymium" -> target: "DrillMission", clusterConditions: [{ "stoneType": "Neodymium" }]
+7. Multi-Condition: For "Both A and B", use TWO objects in the clusterConditions array.
+8. Counts: If asking "How many" (כמה), use count aggregation.`;
 
       const planRes = await this.llm.invoke(planPrompt);
       const match = planRes.content.toString().match(/\{[\s\S]*\}/);
@@ -271,15 +273,27 @@ Important:
           where.mine = { name: { contains: queryPlan.mineConditions.name.value, mode: 'insensitive' } };
         }
         
-        if (queryPlan.clusterConditions?.stoneType) {
+        const clusterConds = Array.isArray(queryPlan.clusterConditions) 
+          ? queryPlan.clusterConditions 
+          : (queryPlan.clusterConditions ? [queryPlan.clusterConditions] : []);
+
+        if (clusterConds.length > 0) {
           if (!where.mine) where.mine = {};
-          const stoneType = typeof queryPlan.clusterConditions.stoneType === 'string' 
-            ? queryPlan.clusterConditions.stoneType 
-            : (queryPlan.clusterConditions.stoneType.value || queryPlan.clusterConditions.stoneType.contains);
+          const andFilters: any[] = [];
           
-          where.mine.clusters = {
-            some: { stoneType: { contains: stoneType, mode: 'insensitive' } }
-          };
+          for (const cond of clusterConds) {
+            const stoneType = typeof cond.stoneType === 'string' ? cond.stoneType : cond.stoneType?.value;
+            if (stoneType) {
+              const op = cond.stoneType?.operator === 'notContains' ? 'none' : 'some';
+              andFilters.push({
+                clusters: { [op]: { stoneType: { contains: stoneType, mode: 'insensitive' } } }
+              });
+            }
+          }
+          
+          if (andFilters.length > 0) {
+            where.mine.AND = andFilters;
+          }
         }
 
         const missions = await this.prisma.drillMission.findMany({
@@ -314,8 +328,8 @@ Important:
         const aggregationResults: Record<string, number> = {};
         for (const agg of queryPlan.aggregations) {
           if (queryPlan.target === 'Cluster' || (queryPlan.target === 'Mine' && agg.field === 'quantity')) {
-            // If target is Mine but field is quantity, we aggregate on Cluster related to those mines
-            const aggWhere = queryPlan.target === 'Mine' ? activeWhere.clusters : activeWhere;
+            // Aggregations MUST be global across all matching records in DB
+            const aggWhere = queryPlan.target === 'Mine' ? { mine: activeWhere } : activeWhere;
             const result = await (this.prisma.cluster.aggregate as any)({
               where: aggWhere,
               [`_${agg.type}`]: { [agg.field]: true }
@@ -355,19 +369,14 @@ Important:
     const prompt = `You are a Rare Earth Mining Virtualization Expert.
 Question: "${question}"
 Query Plan Used: ${JSON.stringify(queryPlan)}
-Results Shown in Details: ${displayEntities.length}
-Remaining Results in List: ${moreCount}
-Total Count in Database: ${queryPlan.totalCount || entities.length}
-
-Context:
-${contextText}
+Results Found: ${entities.length}
 
 Instructions:
-1. Answer in Hebrew professionally.
-2. Keep the response VERY brief (1-2 sentences max).
-3. Do NOT explain the search logic, filters, or criteria in this text response (the user can see them in the "מפרט חיפוש מבנה" GUI).
+1. Respond ONLY based on the results found. 
+2. DO NOT mention total records in the database or other unrelated entities.
+3. Keep the answer professional and focused on the identified ${queryPlan.target}s.
 4. If results were found:
-   - Mention the total count found (${queryPlan.totalCount || entities.length}) and that they are displayed on the map.
+   - Mention the total count found (${entities.length}) and that they are displayed on the map.
 5. If NO results were found, inform the user briefly.
 6. Mention that the query plan has been saved.
 7. Focus strictly on the results and the map.`;
