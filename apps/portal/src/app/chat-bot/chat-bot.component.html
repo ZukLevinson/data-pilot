@@ -36,10 +36,19 @@
             <div class="answer-text">{{ message.text }}</div>
           }
           
-          <!-- Typing Indicator if no text and no thought yet -->
+          <!-- Typing Indicator or Status if no text and no thought yet -->
           @if (!message.text && !message.thought && isWaiting()) {
-            <div class="typing-indicator">
-              <span></span><span></span><span></span>
+            <div class="typing-container">
+              @if (statusText()) {
+                <div class="status-indicator">
+                  <i class="pi pi-spin pi-spinner"></i>
+                  <span>{{ statusText() }}</span>
+                </div>
+              } @else {
+                <div class="typing-indicator">
+                  <span></span><span></span><span></span>
+                </div>
+              }
             </div>
           }
         </div>

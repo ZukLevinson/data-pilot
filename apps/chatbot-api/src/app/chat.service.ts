@@ -36,9 +36,13 @@ export class ChatService {
   async *processChatStream(userId: string, question: string): AsyncGenerator<ChatStreamChunk> {
     this.logger.log(`Streaming chat for user ${userId}: ${question}`);
     
+    yield { status: 'מנתח את השאלה...' };
+    
     // 1. Generate embedding for the question
     const questionEmbedding = await this.embeddings.embedQuery(question);
     const vectorString = `[${questionEmbedding.join(',')}]`;
+
+    yield { status: 'מחפש במסמכים רלוונטיים...' };
 
     // 2. Query Postgres for closest vectors
     const allowedEntities = await this.prisma.$queryRaw<EntitySearchResult[]>`
@@ -55,6 +59,8 @@ export class ChatService {
     `;
 
     const contextText = allowedEntities.map((e, i) => `[Document ${i+1}]: ${e.content}`).join('\n\n');
+
+    yield { status: 'מכין תשובה מפורטת...' };
 
     // 3. Construct prompt - explicitly asking for <think> tags
     const prompt = `You are a helpful AI assistant. 
@@ -73,7 +79,7 @@ Answer:`;
 
     for await (const chunk of stream) {
       if (typeof chunk.content === 'string') {
-        yield { data: chunk.content };
+        yield { content: chunk.content };
       }
     }
   }

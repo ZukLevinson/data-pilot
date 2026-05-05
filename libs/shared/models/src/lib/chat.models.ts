@@ -20,7 +20,8 @@ export interface ChatResponse {
 }
 
 export interface ChatStreamChunk {
-  data: string;
+  content?: string;
+  status?: string;
 }
 
 export interface AppConfig {

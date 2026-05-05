@@ -118,10 +118,35 @@
 }
 
 /* Typing Indicator */
+.typing-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  width: 100%;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #64748b;
+  font-style: italic;
+  width: 100%;
+}
+
+.status-indicator i {
+  font-size: 0.8rem;
+}
+
 .typing-indicator {
   display: flex;
+  justify-content: center;
   gap: 4px;
-  padding: 4px 0;
+  padding: 4px 8px;
+  width: 100%;
 }
 
 .typing-indicator span {

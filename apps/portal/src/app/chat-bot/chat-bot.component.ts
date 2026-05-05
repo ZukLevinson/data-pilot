@@ -33,6 +33,7 @@ export class ChatBotComponent implements AfterViewInit, OnInit {
   
   inputText = signal('');
   isWaiting = signal(false);
+  statusText = signal<string | null>(null);
   currentModel = signal<string | null>(null);
 
   async ngOnInit() {
@@ -68,6 +69,7 @@ export class ChatBotComponent implements AfterViewInit, OnInit {
 
     this.inputText.set('');
     this.isWaiting.set(true);
+    this.statusText.set('מעבד...');
     this.focusInput();
 
     const botMessageId = Date.now() + 1;
@@ -86,9 +88,15 @@ export class ChatBotComponent implements AfterViewInit, OnInit {
         question: text
       });
 
-      for await (const data of stream) {
-        if (!data) continue;
-        fullContent += data;
+      for await (const chunk of stream) {
+        if (chunk.status) {
+          this.statusText.set(chunk.status);
+          continue;
+        }
+
+        if (!chunk.content) continue;
+        this.statusText.set(null);
+        fullContent += chunk.content;
         
         let thought = '';
         let answer = fullContent;
@@ -116,6 +124,7 @@ export class ChatBotComponent implements AfterViewInit, OnInit {
       ));
     } finally {
       this.isWaiting.set(false);
+      this.statusText.set(null);
     }
   }
 

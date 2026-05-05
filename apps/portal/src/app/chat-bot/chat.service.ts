@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { AppConfig, ChatRequest } from '@org/models';
+import { AppConfig, ChatRequest, ChatStreamChunk } from '@org/models';
 
 @Injectable({ providedIn: 'root' })
 export class ChatService {
@@ -10,7 +10,7 @@ export class ChatService {
     return this.http.get<AppConfig>('/api/config');
   }
 
-  async *streamChat(request: ChatRequest): AsyncIterable<string> {
+  async *streamChat(request: ChatRequest): AsyncIterable<ChatStreamChunk> {
     const response = await fetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -36,7 +36,12 @@ export class ChatService {
       const lines = chunk.split('\n');
       for (const line of lines) {
         if (line.startsWith('data: ')) {
-          yield line.replace('data: ', '');
+          try {
+            const data = JSON.parse(line.replace('data: ', '')) as ChatStreamChunk;
+            yield data;
+          } catch (e) {
+            console.error('Failed to parse stream chunk', e);
+          }
         }
       }
     }

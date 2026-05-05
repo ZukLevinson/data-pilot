@@ -31,7 +31,9 @@ export class AppController {
     }
     let fullReply = '';
     for await (const chunk of this.chatService.processChatStream(body.userId, body.question)) {
-      fullReply += chunk.data;
+      if (chunk.content) {
+        fullReply += chunk.content;
+      }
     }
     return { reply: fullReply };
   }
@@ -52,7 +54,7 @@ export class AppController {
 
     try {
       for await (const chunk of this.chatService.processChatStream(body.userId, body.question)) {
-        res.write(`data: ${chunk.data}\n\n`);
+        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
       }
     } catch (error) {
       console.error('Streaming error:', error);
