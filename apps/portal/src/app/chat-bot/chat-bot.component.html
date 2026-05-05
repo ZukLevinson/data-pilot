@@ -31,6 +31,27 @@
             </div>
           }
           
+          <!-- Sources Section -->
+          @if (message.sources && message.sources.length > 0) {
+            <div class="sources-container">
+              <div class="sources-header">המקורות שנמצאו:</div>
+              <div class="sources-list">
+                @for (source of message.sources; track source.id) {
+                  <div class="source-card">
+                    <i [class]="'pi ' + (
+                      source.type === 'point' ? 'pi-map-marker' : 
+                      source.type === 'circle' ? 'pi-circle' : 
+                      source.type.includes('polygon') ? 'pi-box' : 
+                      source.type === 'corridor' ? 'pi-arrows-h' : 
+                      source.type === 'ellipse' ? 'pi-search' : 'pi-map'
+                    )"></i>
+                    <span class="source-type">{{ source.type }}</span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+
           <!-- Actual Answer -->
           @if (message.text) {
             <div class="answer-text">{{ message.text }}</div>

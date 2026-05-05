@@ -112,6 +112,60 @@
   color: #888;
 }
 
+/* Sources Styling */
+.sources-container {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  background: rgba(59, 130, 246, 0.05);
+  border-radius: 8px;
+  border-right: 2px solid #3b82f6;
+}
+
+.sources-header {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #3b82f6;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.sources-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.source-card {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.6rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #475569;
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+.source-card:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.source-card i {
+  font-size: 0.85rem;
+}
+
+.source-type {
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
 .answer-text {
   color: #2c3e50;
   white-space: pre-wrap;

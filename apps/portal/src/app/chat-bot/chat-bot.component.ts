@@ -1,5 +1,5 @@
-import { Component, ChangeDetectionStrategy, signal, inject, ElementRef, AfterViewInit, OnInit, viewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, ChangeDetectionStrategy, signal, inject, ElementRef, AfterViewInit, OnInit, viewChild, PLATFORM_ID } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { TextareaModule } from 'primeng/textarea';
@@ -8,6 +8,17 @@ import { BadgeModule } from 'primeng/badge';
 import { ChatMessage } from '@org/models';
 import { ChatService } from './chat.service';
 import { firstValueFrom } from 'rxjs';
+import { EntitySearchResult } from '@org/models';
+
+interface Message {
+  id: number;
+  text: string;
+  sender: 'user' | 'bot';
+  timestamp: Date;
+  thought?: string;
+  sources?: EntitySearchResult[];
+  isError?: boolean;
+}
 
 @Component({
   selector: 'app-chat-bot',
@@ -19,10 +30,11 @@ import { firstValueFrom } from 'rxjs';
 })
 export class ChatBotComponent implements AfterViewInit, OnInit {
   private chatService = inject(ChatService);
+  private platformId = inject(PLATFORM_ID);
 
   messageInput = viewChild<ElementRef<HTMLTextAreaElement>>('messageInput');
 
-  messages = signal<ChatMessage[]>([
+  messages = signal<Message[]>([
     {
       id: 1,
       text: 'שלום! איך אני יכול לעזור לך היום?',
@@ -37,11 +49,13 @@ export class ChatBotComponent implements AfterViewInit, OnInit {
   currentModel = signal<string | null>(null);
 
   async ngOnInit() {
-    try {
-      const config = await firstValueFrom(this.chatService.getConfig());
-      this.currentModel.set(config.modelName);
-    } catch (err) {
-      console.error('Failed to fetch model config:', err);
+    if (isPlatformBrowser(this.platformId)) {
+      try {
+        const config = await firstValueFrom(this.chatService.getConfig());
+        this.currentModel.set(config.modelName);
+      } catch (err) {
+        console.error('Failed to fetch model config:', err);
+      }
     }
   }
 
@@ -91,6 +105,13 @@ export class ChatBotComponent implements AfterViewInit, OnInit {
       for await (const chunk of stream) {
         if (chunk.status) {
           this.statusText.set(chunk.status);
+          continue;
+        }
+
+        if (chunk.sources) {
+          this.messages.update(msgs => msgs.map(m => 
+            m.id === botMessageId ? { ...m, sources: chunk.sources } : m
+          ));
           continue;
         }
 

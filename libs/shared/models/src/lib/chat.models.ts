@@ -22,6 +22,7 @@ export interface ChatResponse {
 export interface ChatStreamChunk {
   content?: string;
   status?: string;
+  sources?: EntitySearchResult[];
 }
 
 export interface AppConfig {

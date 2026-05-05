@@ -53,31 +53,43 @@ export class ChatService {
     `;
 
     const contextText = areas.map((e, i) => `[Document ${i+1}]: ${e.content}`).join('\n\n');
+    
+    // Yield sources to the client
+    yield { sources: areas };
 
-    yield { status: 'מכין תשובה מפורטת...' };
+    yield { status: 'מכין תשובה...' };
 
-    // 3. Construct prompt - explicitly asking for <think> tags
-    const prompt = `אתה מומחה לישויות גיאוגרפיות ומערכות מידע מרחביות (GIS). 
-ענה על השאלות על סמך ההקשר המצורף בלבד. 
-ההקשר מכיל מידע על ישויות גיאוגרפיות מסוג: נקודה (Point), מעגל (Circle), פוליגון פתוח/סגור (Polygon), מסדרון (Corridor) ואליפסה (Ellipse).
+    // 3. Construct prompt
+    const prompt = `אתה עוזר מומחה למערכות מידע גיאוגרפיות.
+ענה על השאלה בצורה תמציתית, עניינית ומקצועית על סמך המידע הבא:
 
-ראשית, חשוב על התשובה צעד אחר צעד בתוך תגיות <think>. 
-לאחר מכן, ספק את התשובה הסופית בעברית.
-
-Context:
 ${contextText}
 
-Question: ${question}
+שאלה: ${question}
+
+הנחיות:
+1. חשוב על התשובה צעד אחר צעד בתוך תגיות <think>.
+2. ענה בעברית באופן קצר וממוקד. אל תרחיב מעבר לנדרש.
 
 Answer:`;
 
     // 4. Stream response from local Qwen
+    this.logger.log(`Prompt: ${prompt}`);
     const stream = await this.llm.stream(prompt);
 
+    let hasResponded = false;
     for await (const chunk of stream) {
-      if (typeof chunk.content === 'string') {
+      if (typeof chunk.content === 'string' && chunk.content) {
+        if (!hasResponded) {
+          this.logger.log(`Model started responding...`);
+          hasResponded = true;
+        }
         yield { content: chunk.content };
       }
+    }
+    
+    if (!hasResponded) {
+      this.logger.warn('Model returned an empty response!');
     }
   }
 }
