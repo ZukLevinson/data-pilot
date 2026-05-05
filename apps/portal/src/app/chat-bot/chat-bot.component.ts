@@ -8,11 +8,12 @@ import { Button } from 'primeng/button';
 import { Badge } from 'primeng/badge';
 import { Avatar } from 'primeng/avatar';
 import { MapWidgetComponent } from './map-widget/map-widget.component';
+import { MarkdownPipe } from './markdown.pipe';
 
 @Component({
   selector: 'app-chat-bot',
   standalone: true,
-  imports: [CommonModule, FormsModule, Textarea, Button, Badge, Avatar, MapWidgetComponent],
+  imports: [CommonModule, FormsModule, Textarea, Button, Badge, Avatar, MapWidgetComponent, MarkdownPipe],
   templateUrl: './chat-bot.component.html',
   styleUrls: ['./chat-bot.component.css']
 })
@@ -113,6 +114,7 @@ export class ChatBotComponent {
     } finally {
       this.isWaiting.set(false);
       this.scrollToBottom();
+      this.focusInput();
     }
   }
 

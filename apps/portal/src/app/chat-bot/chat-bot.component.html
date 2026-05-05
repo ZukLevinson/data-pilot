@@ -52,7 +52,11 @@
 
             <!-- Actual Answer -->
             @if (message.text) {
-              <div class="answer-text">{{ message.text }}</div>
+              @if (message.sender === 'bot') {
+                <div class="answer-text markdown-body" [innerHTML]="message.text | markdown"></div>
+              } @else {
+                <div class="answer-text">{{ message.text }}</div>
+              }
             }
             
             <!-- Status / Typing -->
@@ -94,6 +98,7 @@
           autocomplete="off"
           class="message-input"
           [disabled]="isWaiting()"
+          autofocus
         ></textarea>
         <p-button 
           type="submit" 

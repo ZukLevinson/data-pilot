@@ -38,6 +38,12 @@ export class ChatService {
     const isAddQuery = /add|keep|also|בנוסף|תתקדם|תשאיר|וכן|תצרף|תוסיף/i.test(question);
     const mode: 'replace' | 'append' = isAddQuery ? 'append' : 'replace';
 
+    // Extract requested result count (e.g. "show me 10 areas" → limit=10)
+    // If user says "all" / "כל" / "הכל", remove the limit
+    const isAllQuery = /\ball\b|כל\s+ה|את\s+כל|הכל|הצג\s+הכל/i.test(question);
+    const countMatch = question.match(/\b(\d+)\b/);
+    const requestedLimit = isAllQuery ? 10000 : (countMatch ? Math.min(parseInt(countMatch[1], 10), 1000) : 5);
+
     // 1. Extract potential filters (Name, Color, Type) using a quick LLM pass
     let filters: { name?: string, type?: string, color?: string } = {};
     try {
@@ -47,18 +53,23 @@ Return ONLY a JSON object: {"name": string, "type": string, "color": string}.
 CRITICAL RULES:
 1. ONLY include a field if it is EXPLICITLY and LITERALLY mentioned in the question.
 2. If a property is not mentioned, DO NOT include it in the JSON at all (omit the key).
-3. "areas", "אזורים", or "ישויות" are GENERIC terms. DO NOT assign a "type" if these are the only terms used.
+3. "areas", "אזורים", "איזורים", "אזור", "איזור", or "ישויות" are GENERIC terms. DO NOT assign a "type" if these are the only terms used.
 4. NEVER guess "point" as a default type unless they literally say "points".
 5. If the user says "red areas", set color to "#ef4444" and leave "name" and "type" OUT.
 6. DO NOT guess the type if not mentioned.
-7. DO NOT use the question text as the "name" unless they say "named X".
-8. Be clinical and minimal.
+7. DO NOT use the question text as the "name" unless they say "named X" or "שם X".
+8. NUMBERS (like 5, 10, 100) are ALWAYS quantity counts, NEVER names. Ignore them entirely.
+9. Be clinical and minimal.
 
 EXAMPLES:
 - "how many red areas" -> {"color": "#ef4444"}
 - "circles in Paris" -> {"type": "circle"}
 - "areas named France" -> {"name": "France"}
 - "blue polygons" -> {"color": "#3b82f6", "type": "polygon"}
+- "תציג 5 אזורים" -> {}
+- "תציג 5 איזורים" -> {}
+- "הצג 10 אזורים אדומים" -> {"color": "#ef4444"}
+- "show me 7 circles" -> {"type": "circle"}
 
 Colors: #ef4444 (red), #f97316 (orange), #f59e0b (yellow), #10b981 (green), #3b82f6 (blue), #6366f1 (indigo), #8b5cf6 (purple), #d946ef (pink).
 Types: point, circle, open polygon, closed polygon, corridor, ellipse.`;
@@ -77,21 +88,16 @@ Types: point, circle, open polygon, closed polygon, corridor, ellipse.`;
     const isGeneralQuery = /count|how many|כמה|מספר|כמות/i.test(question);
     
     // Type detection mapping for Hebrew/English
-    const typeMapping: Record<string, string> = {
-      'circle': 'circle', 'מעגל': 'circle', 'עיגול': 'circle',
-      'point': 'point', 'נקודה': 'point', 'נקודות': 'point',
-      'polygon': 'polygon', 'פוליגון': 'polygon', 'מצולע': 'polygon', 'מצולעים': 'polygon',
-      'corridor': 'corridor', 'מסדרון': 'corridor', 'פרוזדור': 'corridor',
-      'ellipse': 'ellipse', 'אליפסה': 'ellipse'
-    };
 
-    let targetType = null;
-    for (const key in typeMapping) {
-      if (question.toLowerCase().includes(key)) {
-        targetType = typeMapping[key];
-        break;
-      }
-    }
+    // Post-process: strip any filter the LLM hallucinated for purely generic queries
+    // e.g. "תציג 5 אזורים" / "תציג 5 איזורים" → no filter at all
+    const hasExplicitType = /circle|מעגל|עיגול|point|נקודה|polygon|פוליגון|מצולע|corridor|מסדרון|ellipse|אליפסה/i.test(question);
+    const hasExplicitColor = /red|אדום|blue|כחול|green|ירוק|orange|כתום|yellow|צהוב|purple|סגול|pink|ורוד|indigo/i.test(question);
+    const hasExplicitName = /named|שם|בשם/i.test(question);
+
+    if (!hasExplicitType) delete filters.type;
+    if (!hasExplicitColor) delete filters.color;
+    if (!hasExplicitName) delete filters.name;
 
     // Spatial Resolver for major cities (Pilot)
     const cities: Record<string, [number, number]> = {
@@ -187,7 +193,7 @@ ${targetCity ? `באזור ${targetCity.name} (רדיוס ${radiusKm} ק"מ), נ
         FROM "Area" a
         WHERE ${whereSql}
         ORDER BY a.geom <-> ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)
-        LIMIT 5;
+        LIMIT ${requestedLimit};
       `);
     } else {
       // Fallback to Semantic Vector Search
@@ -199,7 +205,7 @@ ${targetCity ? `באזור ${targetCity.name} (רדיוס ${radiusKm} ק"מ), נ
         FROM "Area" a
         WHERE ${whereSql}
         ORDER BY distance ASC
-        LIMIT 5;
+        LIMIT ${requestedLimit};
       `);
     }
 
@@ -209,7 +215,14 @@ ${targetCity ? `באזור ${targetCity.name} (רדיוס ${radiusKm} ק"מ), נ
     yield { sources: areas, mode };
 
     if (isShowQuery) {
-      this.logger.log(`Show query detected, skipping LLM response.`);
+      this.logger.log(`Show query detected, returning map confirmation.`);
+      const filterDesc = [
+        filters.color ? `צבע ${filters.color}` : '',
+        filters.type ? `סוג "${filters.type}"` : '',
+        filters.name ? `שם "${filters.name}"` : '',
+      ].filter(Boolean).join(', ');
+      const mapMsg = `מציג **${areas.length}** אזורים על המפה${filterDesc ? ` (${filterDesc})` : ''}.`;
+      yield { content: mapMsg };
       return;
     }
 
