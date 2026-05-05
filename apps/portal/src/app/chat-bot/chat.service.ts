@@ -7,7 +7,7 @@ export class ChatService {
   private http = inject(HttpClient);
 
   getConfig() {
-    return this.http.get<AppConfig>('/api/config');
+    return this.http.get<AppConfig>('/api/chat/config');
   }
 
   async *streamChat(request: ChatRequest): AsyncIterable<ChatStreamChunk> {

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from './prisma.service';
+import { PrismaService } from '../database/prisma.service';
 import { ChatOpenAI, OpenAIEmbeddings } from '@langchain/openai';
 import { ChatStreamChunk, EntitySearchResult } from '@org/models';
 
@@ -87,7 +87,7 @@ Types: point, circle, open polygon, closed polygon, corridor, ellipse.`;
         filters = JSON.parse(match[0]);
         this.logger.log(`Extracted Filters: ${JSON.stringify(filters)}`);
       }
-    } catch (e) {
+    } catch {
       this.logger.warn('Failed to extract filters, falling back to semantic only.');
     }
 
