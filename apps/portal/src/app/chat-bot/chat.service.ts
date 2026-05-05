@@ -1,7 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { AppConfig, ChatRequest } from '@org/shared/models';
-import { firstValueFrom } from 'rxjs';
+import { AppConfig, ChatRequest } from '@org/models';
 
 @Injectable({ providedIn: 'root' })
 export class ChatService {

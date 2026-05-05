@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { ChatOpenAI, OpenAIEmbeddings } from '@langchain/openai';
-import { ChatStreamChunk } from '@org/shared/models';
+import { ChatStreamChunk } from '@org/models';
 
 @Injectable()
 export class ChatService {

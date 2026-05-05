@@ -5,7 +5,7 @@ import { ButtonModule } from 'primeng/button';
 import { TextareaModule } from 'primeng/textarea';
 import { AvatarModule } from 'primeng/avatar';
 import { BadgeModule } from 'primeng/badge';
-import { ChatMessage } from '@org/shared/models';
+import { ChatMessage } from '@org/models';
 import { ChatService } from './chat.service';
 import { firstValueFrom } from 'rxjs';
 

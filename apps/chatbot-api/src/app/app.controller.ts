@@ -2,7 +2,7 @@ import { Body, Controller, Get, Post, Res } from '@nestjs/common';
 import { AppService } from './app.service';
 import { ChatService } from './chat.service';
 import { Response } from 'express';
-import { ChatRequest, AppConfig, ChatResponse } from '@org/shared/models';
+import { ChatRequest, AppConfig, ChatResponse } from '@org/models';
 
 @Controller()
 export class AppController {
