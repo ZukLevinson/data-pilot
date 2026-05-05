@@ -44,28 +44,25 @@ export class ChatService {
 
     yield { status: 'מחפש במסמכים רלוונטיים...' };
 
-    // 2. Query Postgres for closest vectors
-    const allowedEntities = await this.prisma.$queryRaw<EntitySearchResult[]>`
-      SELECT e.id, e.content, e.type, e.embedding <=> ${vectorString}::vector as distance
-      FROM "Entity" e
-      LEFT JOIN "EntityTag" et ON e.id = et.entity_id
-      WHERE 
-        et.tag_id IS NULL 
-        OR et.tag_id IN (
-          SELECT tag_id FROM "UserTag" WHERE user_id = ${userId}::uuid
-        )
+    // 2. Query Postgres for closest vectors (Semantic Search)
+    const areas = await this.prisma.$queryRaw<EntitySearchResult[]>`
+      SELECT a.id, a.content, a.type, a.embedding <=> ${vectorString}::vector as distance
+      FROM "Area" a
       ORDER BY distance ASC
       LIMIT 5;
     `;
 
-    const contextText = allowedEntities.map((e, i) => `[Document ${i+1}]: ${e.content}`).join('\n\n');
+    const contextText = areas.map((e, i) => `[Document ${i+1}]: ${e.content}`).join('\n\n');
 
     yield { status: 'מכין תשובה מפורטת...' };
 
     // 3. Construct prompt - explicitly asking for <think> tags
-    const prompt = `You are a helpful AI assistant. 
-First, think through the answer step-by-step inside <think> tags. 
-Then, provide the final answer based ONLY on the context provided.
+    const prompt = `אתה מומחה לישויות גיאוגרפיות ומערכות מידע מרחביות (GIS). 
+ענה על השאלות על סמך ההקשר המצורף בלבד. 
+ההקשר מכיל מידע על ישויות גיאוגרפיות מסוג: נקודה (Point), מעגל (Circle), פוליגון פתוח/סגור (Polygon), מסדרון (Corridor) ואליפסה (Ellipse).
+
+ראשית, חשוב על התשובה צעד אחר צעד בתוך תגיות <think>. 
+לאחר מכן, ספק את התשובה הסופית בעברית.
 
 Context:
 ${contextText}

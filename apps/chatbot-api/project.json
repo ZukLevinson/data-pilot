@@ -65,6 +65,13 @@
       "options": {
         "passWithNoTests": true
       }
+    },
+    "reseed-geo": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "ts-node prisma/reseed-geo.ts",
+        "cwd": "apps/chatbot-api"
+      }
     }
   }
 }

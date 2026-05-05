@@ -6,46 +6,18 @@ generator client {
 
 datasource db {
   provider   = "postgresql"
-  extensions = [vector]
+  extensions = [vector, postgis]
 }
 
-model User {
-  id    String    @id @default(uuid()) @db.Uuid
-  email String    @unique
-  tags  UserTag[]
-}
-
-model Tag {
-  id       String      @id @default(uuid()) @db.Uuid
-  name     String      @unique
-  users    UserTag[]
-  entities EntityTag[]
-}
-
-model UserTag {
-  userId String @map("user_id") @db.Uuid
-  tagId  String @map("tag_id") @db.Uuid
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@id([userId, tagId])
-}
-
-model Entity {
+model Area {
   id        String                  @id @default(uuid()) @db.Uuid
   content   String
   type      String
-  // Using pgvector's vector type, assuming 1536 dimensions (e.g., from an embedding model, Qwen usually 4096 or 1536 depending on the embedding model used, let's use unsupported("vector") for custom dimensions or Prisma's native support if available)
-  // Currently Prisma supports Unsupported("vector(1536)")
+  // PostGIS geometry column (SRID 4326 for WGS 84)
+  geom      Unsupported("geometry(Geometry, 4326)")?
+  // Using pgvector's vector type with 768 dimensions (for nomic-embed-text)
   embedding Unsupported("vector(768)")?
-  tags      EntityTag[]
-}
+  createdAt DateTime                @default(now()) @map("created_at")
 
-model EntityTag {
-  entityId String @map("entity_id") @db.Uuid
-  tagId    String @map("tag_id") @db.Uuid
-  entity   Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@id([entityId, tagId])
+  @@map("Area")
 }
