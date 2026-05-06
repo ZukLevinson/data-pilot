@@ -2,19 +2,26 @@
   <!-- Left Side: Chat Interface (Command Center) -->
   <div class="chat-sidebar">
     <div class="chat-header">
-      <div class="header-info">
-        <p-avatar icon="pi pi-compass" shape="circle" size="normal" [style]="{'background-color': '#dbeafe', 'color': '#2563eb'}"></p-avatar>
-        <div>
-          <div class="title-row">
-            <h2 class="title">Data Pilot</h2>
-            @if (chatService.currentModel()) {
-              <p-badge [value]="chatService.currentModel()!" severity="info" styleClass="model-badge"></p-badge>
-            }
+      <div class="brand-section">
+        <div class="logo-orb">
+          <i class="pi pi-compass"></i>
+        </div>
+        <div class="brand-info">
+          <h1 class="title">Data Pilot</h1>
+          <div class="meta-row">
+            <span class="status-indicator active">
+              <span class="dot"></span>
+              {{ chatService.isWaiting() ? 'מעבד...' : 'Online' }}
+            </span>
+            <span class="divider">|</span>
+            <span class="model-name">{{ chatService.currentModel() || 'GIS-Brain' }}</span>
           </div>
-          <p class="subtitle">GIS Command Center</p>
         </div>
       </div>
-      <p-button icon="pi pi-history" [rounded]="true" [text]="true" (onClick)="chatService.showHistory.set(true); chatService.loadHistory()" pTooltip="Query Library"></p-button>
+      <div class="header-actions">
+        <p-button icon="pi pi-history" [rounded]="true" [text]="true" (onClick)="chatService.showHistory.set(true); chatService.loadHistory()" pTooltip="Query Library"></p-button>
+        <p-button icon="pi pi-refresh" [rounded]="true" [text]="true" (onClick)="chatService.clear()" pTooltip="נקה שיחה"></p-button>
+      </div>
     </div>
 
     <p-drawer [(visible)]="chatService.showHistory" position="left" [baseZIndex]="10000" styleClass="history-sidebar" header="ספריית שאילתות" appendTo="body">
@@ -57,28 +64,6 @@
               </div>
             }
             
-            <!-- Sources Section (Compact Pills) -->
-            @if (message.sources && message.sources.length > 0) {
-              <div class="sources-pills">
-                @for (source of message.sources.slice(0, 3); track source.id) {
-                  <div class="source-pill">
-                    <i [class]="'pi ' + (
-                      source.type === 'Mine' ? 'pi-map' : 
-                      source.type === 'Cluster' ? 'pi-database' : 
-                      source.type === 'Mission' ? 'pi-calendar' : 
-                      source.type === 'point' ? 'pi-map-marker' : 'pi-box'
-                    )" [style.color]="source.color"></i>
-                    <span class="source-name">{{ source.name }}</span>
-                  </div>
-                }
-                @if (message.sources.length > 3) {
-                  <div class="source-pill more">
-                    <i class="pi pi-plus"></i>
-                    <span>{{ message.sources.length - 3 }} במפה</span>
-                  </div>
-                }
-              </div>
-            }
             
             <!-- Query Plan GUI -->
             @if (message.queryPlan) {
@@ -153,7 +138,7 @@
 
                   @if (message.queryPlan.aggregationResults && (message.queryPlan.aggregationResults | json) !== '{}') {
                     <div class="plan-item full">
-                      <span class="label">נתונים מסוכמים:</span>
+                      <span class="label">סיכום נתונים כללי:</span>
                       <div class="aggregation-results">
                         @for (agg of message.queryPlan.aggregationResults | keyvalue; track agg.key) {
                           <div class="agg-result-card">
@@ -164,6 +149,30 @@
                                 {{ agg.value | number }} 
                                 {{ isCountAgg(agg.key) ? 'יחידות' : 'ק״ג' }}
                               </span>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+
+                  @if (message.queryPlan.groupedResults && message.queryPlan.groupedResults.length > 0) {
+                    <div class="plan-item full">
+                      <span class="label">ניתוח נתונים לפי פילוח:</span>
+                      <div class="grouped-results">
+                        @for (group of message.queryPlan.groupedResults; track group.group) {
+                          <div class="group-result-card">
+                            <div class="group-header">
+                              <i class="pi pi-tags"></i>
+                              <span>{{ group.group }}</span>
+                            </div>
+                            <div class="group-metrics">
+                              @for (metric of group.results | keyvalue; track metric.key) {
+                                <div class="metric-row">
+                                  <span class="m-label">{{ getReadableAggType(metric.key) }}:</span>
+                                  <span class="m-val">{{ metric.value | number }}</span>
+                                </div>
+                              }
                             </div>
                           </div>
                         }

@@ -152,4 +152,16 @@ export class ChatService {
       }
     }
   }
+
+  clear() {
+    this.messages.set([{
+      id: 0,
+      sender: 'bot',
+      timestamp: new Date(),
+      text: helloMessage
+    }]);
+    this.currentSources.set([]);
+    this.currentQueryPlan.set(null);
+    this.statusText.set(null);
+  }
 }

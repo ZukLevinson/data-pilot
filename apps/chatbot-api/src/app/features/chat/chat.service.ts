@@ -110,6 +110,9 @@ Instructions:
           }
         }
       }
+      
+      // Final yield to sync any late-binding plan updates (like groupedResults names or totalCount)
+      yield { queryPlan };
     } catch (e) {
       this.logger.error('Stream processing failed', e);
       yield { content: 'אירעה שגיאה בעת עיבוד הבקשה.' };

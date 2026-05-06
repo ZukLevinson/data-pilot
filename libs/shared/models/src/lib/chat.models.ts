@@ -20,14 +20,24 @@ export interface Aggregation {
   type: 'sum' | 'avg' | 'min' | 'max' | 'count';
 }
 
+export interface OrderBy {
+  field: string;
+  direction: 'asc' | 'desc';
+  type?: 'sum' | 'avg' | 'min' | 'max' | 'count'; // If ordering by aggregation
+}
+
 export interface QueryPlan {
   target: 'Mine' | 'Cluster' | 'Drill' | 'DrillMission';
   limit?: number;
   conditions?: Record<string, ConditionValue>;
   aggregations?: Aggregation[];
+  groupBy?: string;
+  orderBy?: OrderBy;
   generatedSql?: string;
   totalCount?: number;
   aggregationResults?: Record<string, number>;
+  groupedResults?: { group: string; results: Record<string, number> }[];
+  isStatsOnly?: boolean;
 }
 
 export interface SavedQuery {

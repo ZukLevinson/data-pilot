@@ -46,41 +46,115 @@ export class ChatExecutor {
     let rawResults: any[] = [];
     let totalCount = 0;
 
-    if (queryPlan.target === 'Mine') {
-      rawResults = await this.prisma.mine.findMany({ where, take: resultLimit });
-      totalCount = await this.prisma.mine.count({ where });
-      queryPlan.generatedSql = `SELECT count(*) FROM "Mine" (Complex Filter)`;
-    } else if (queryPlan.target === 'Cluster') {
-      rawResults = await this.prisma.cluster.findMany({ where, include: { mine: true }, take: resultLimit });
-      totalCount = await this.prisma.cluster.count({ where });
-      queryPlan.generatedSql = `SELECT count(*) FROM "Cluster" (Complex Filter)`;
-    } else if (queryPlan.target === 'DrillMission') {
-      rawResults = await this.prisma.drillMission.findMany({ where, include: { mine: true, drill: true }, take: resultLimit });
-      totalCount = await this.prisma.drillMission.count({ where });
-      queryPlan.generatedSql = `SELECT count(*) FROM "DrillMission" (Complex Filter)`;
+    if (!queryPlan.isStatsOnly) {
+      const orderBy = (queryPlan.orderBy && !queryPlan.orderBy.type) ? { [queryPlan.orderBy.field]: queryPlan.orderBy.direction } : undefined;
+
+      if (queryPlan.target === 'Mine') {
+        rawResults = await this.prisma.mine.findMany({ where, take: resultLimit, orderBy });
+        totalCount = await this.prisma.mine.count({ where });
+        queryPlan.generatedSql = `SELECT count(*) FROM "Mine" (Complex Filter)`;
+      } else if (queryPlan.target === 'Cluster') {
+        rawResults = await this.prisma.cluster.findMany({ where, include: { mine: true }, take: resultLimit, orderBy });
+        totalCount = await this.prisma.cluster.count({ where });
+        queryPlan.generatedSql = `SELECT count(*) FROM "Cluster" (Complex Filter)`;
+      } else if (queryPlan.target === 'DrillMission') {
+        rawResults = await this.prisma.drillMission.findMany({ where, include: { mine: true, drill: true }, take: resultLimit, orderBy });
+        totalCount = await this.prisma.drillMission.count({ where });
+        queryPlan.generatedSql = `SELECT count(*) FROM "DrillMission" (Complex Filter)`;
+      }
+      queryPlan.totalCount = totalCount;
     }
 
-    queryPlan.totalCount = totalCount;
-
-    // Handle Aggregations in parallel
+    // Handle Aggregations (Global or Grouped)
     if (queryPlan.aggregations?.length) {
-      const aggregationResults: Record<string, number> = {};
-      for (const agg of queryPlan.aggregations) {
-        if (queryPlan.target === 'Cluster' || (queryPlan.target === 'Mine' && agg.field === 'quantity')) {
-          const aggWhere = queryPlan.target === 'Mine' ? ({ mine: where } as Prisma.ClusterWhereInput) : (where as Prisma.ClusterWhereInput);
-          const result = await this.prisma.cluster.aggregate({
-            where: aggWhere,
-            [`_${agg.type}`]: { [agg.field]: true }
-          } as unknown as Prisma.ClusterAggregateArgs);
-          const resultObj = result as any;
-          const val = resultObj[`_${agg.type}`]?.[agg.field];
-          aggregationResults[`${agg.type}_${agg.field}`] = typeof val === 'number' ? val : 0;
+      const entity = queryPlan.target === 'Cluster' ? 'cluster' : (queryPlan.target === 'Mine' ? 'mine' : 'drillMission');
+      // Special case: if target is Mine but we want cluster quantity stats
+      const aggTable = (queryPlan.target === 'Mine' && queryPlan.aggregations.some(a => a.field === 'quantity')) ? 'cluster' : entity;
+      
+      const _sum = Object.fromEntries(queryPlan.aggregations.filter(a => a.type === 'sum').map(a => [a.field, true]));
+      const _avg = Object.fromEntries(queryPlan.aggregations.filter(a => a.type === 'avg').map(a => [a.field, true]));
+      const _min = Object.fromEntries(queryPlan.aggregations.filter(a => a.type === 'min').map(a => [a.field, true]));
+      const _max = Object.fromEntries(queryPlan.aggregations.filter(a => a.type === 'max').map(a => [a.field, true]));
+      const _count = Object.fromEntries(queryPlan.aggregations.filter(a => a.type === 'count').map(a => [a.field === '*' ? '_all' : a.field, true]));
+
+      const aggWhere = (aggTable === 'cluster' && queryPlan.target === 'Mine') ? { mine: where } : where;
+
+      if (queryPlan.groupBy) {
+        const orderByField = queryPlan.orderBy?.field === '*' ? '_all' : queryPlan.orderBy?.field;
+        const orderBy = queryPlan.orderBy ? 
+          (queryPlan.orderBy.type ? 
+            { [`_${queryPlan.orderBy.type}`]: { [orderByField!]: queryPlan.orderBy.direction } } : 
+            (queryPlan.groupBy === queryPlan.orderBy.field ? { [queryPlan.orderBy.field]: queryPlan.orderBy.direction } : undefined)
+          ) : undefined;
+
+        const groupedArgs: any = {
+          where: aggWhere,
+          by: [queryPlan.groupBy],
+          orderBy,
+          take: queryPlan.limit || undefined,
+        };
+        if (Object.keys(_sum).length) groupedArgs._sum = _sum;
+        if (Object.keys(_avg).length) groupedArgs._avg = _avg;
+        if (Object.keys(_min).length) groupedArgs._min = _min;
+        if (Object.keys(_max).length) groupedArgs._max = _max;
+        if (Object.keys(_count).length) groupedArgs._count = _count;
+
+        const grouped = await (this.prisma[aggTable] as any).groupBy(groupedArgs);
+
+        queryPlan.groupedResults = grouped.map((row: any) => {
+          const results: Record<string, number> = {};
+          for (const agg of queryPlan.aggregations!) {
+            const typeKey = `_${agg.type}`;
+            const fieldKey = agg.field === '*' ? '_all' : agg.field;
+            results[`${agg.type}_${agg.field}`] = row[typeKey]?.[fieldKey] || 0;
+          }
+          return { group: String(row[queryPlan.groupBy!]), results };
+        });
+      } else {
+        const aggs = await (this.prisma[aggTable] as any).aggregate({
+          where: aggWhere,
+          _sum: Object.keys(_sum).length ? _sum : undefined,
+          _avg: Object.keys(_avg).length ? _avg : undefined,
+          _min: Object.keys(_min).length ? _min : undefined,
+          _max: Object.keys(_max).length ? _max : undefined,
+          _count: Object.keys(_count).length ? _count : undefined,
+        });
+
+        queryPlan.aggregationResults = {};
+        for (const agg of queryPlan.aggregations) {
+          const typeKey = `_${agg.type}`;
+          const fieldKey = agg.field === '*' ? '_all' : agg.field;
+          queryPlan.aggregationResults[`${agg.type}_${agg.field}`] = (aggs as any)[typeKey]?.[fieldKey] || 0;
         }
       }
-      queryPlan.aggregationResults = aggregationResults;
     }
 
-    if (rawResults.length === 0) {
+    // Resolve IDs to names for Grouped Results
+    if (queryPlan.groupedResults && queryPlan.groupedResults.length > 0) {
+      if (queryPlan.groupBy === 'mineId') {
+        const mineIds = queryPlan.groupedResults.map(r => r.group);
+        const mines = await this.prisma.mine.findMany({
+          where: { id: { in: mineIds } },
+          select: { id: true, name: true }
+        });
+        queryPlan.groupedResults.forEach(r => {
+          const m = mines.find(m => m.id === String(r.group));
+          if (m) r.group = m.name;
+        });
+      } else if (queryPlan.groupBy === 'drillId') {
+        const drillIds = queryPlan.groupedResults.map(r => r.group);
+        const drills = await this.prisma.drill.findMany({
+          where: { id: { in: drillIds } },
+          select: { id: true, name: true }
+        });
+        queryPlan.groupedResults.forEach(r => {
+          const d = drills.find(d => d.id === String(r.group));
+          if (d) r.group = d.name;
+        });
+      }
+    }
+
+    if (rawResults.length === 0 && !queryPlan.isStatsOnly) {
       yield [];
       return;
     }
