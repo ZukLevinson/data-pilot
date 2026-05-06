@@ -7,8 +7,12 @@ export class ChatPlanner {
   private readonly logger = new Logger(ChatPlanner.name);
 
   async generatePlan(llm: ChatOpenAI, question: string): Promise<QueryPlan | null> {
+    const target = this.identifyTarget(question);
+    this.logger.log(`Identified target: ${target} for question: "${question}"`);
+
     const planPrompt = `You are a SQL Query Planner for a Rare Earth Mining database.
 Question: "${question}"
+Target Entity: ${target} (This has been pre-identified, please stick to it)
 
 Schema:
 - Mine (Hebrew: מכרה): name
@@ -16,10 +20,10 @@ Schema:
 - Drill: name, supportedStoneTypes
 - DrillMission: stoneType, date
 
-Generate a JSON Query Plan.
+Generate a JSON Query Plan for the target "${target}".
 Structure:
 {
-  "target": "Mine" | "Cluster" | "Drill" | "DrillMission",
+  "target": "${target}",
   "limit": number (optional, default to 5000 if not specified),
   "conditions": {
     "fieldName": { "operator": "contains" | "notContains" | "gt" | "lt" | "after" | "before", "value": any }
@@ -40,16 +44,12 @@ Structure:
 - If the user asks for "total", "sum", "average", "mean", "min", "max" of a numeric field (like quantity), use the "aggregations" field.
 - If the user asks "how many" (כמה מקבצים, כמה מכרות) or "number of", use the "count" aggregation type.
 
-- TARGET SELECTION RULES:
-  1. If the user asks for "משימות" or "משימות קידוח" (Drill Missions), the target MUST be "DrillMission".
-  2. If the user asks for "מכרות" (Mines), the target is "Mine".
-  3. If the user asks for "מקבצים" (Clusters), the target is "Cluster".
-  4. Relational filtering: If target is "DrillMission", "mineConditions" filters the mine it's in, and "clusterConditions" filters the clusters of that specific mine.
+- Relational filtering: If target is "DrillMission", "mineConditions" filters the mine it's in, and "clusterConditions" filters the clusters of that specific mine.
 - Hebrew mappings: מכרה = Mine, מקבץ = Cluster, משימה = DrillMission.
 
 Important:
 1. Minerals (Neodymium, Dysprosium, etc.) are ONLY found in Clusters. 
-2. If the user asks for "Mines containing [Stone]", target "Mine" and put the stone filter in "clusterConditions" (or conditions.stoneType). NEVER put the stone name in Mine:name.
+2. If the user asks for "Mines containing [Stone]", target is "Mine" and put the stone filter in "clusterConditions". NEVER put the stone name in Mine:name.
 3. Use "stoneType" (exactly) for mineral names. 
 4. ALWAYS use the English technical name for minerals even if the user asks in Hebrew.
 5. Output ONLY valid JSON.
@@ -60,10 +60,56 @@ Important:
     const planRes = await llm.invoke(planPrompt);
     const match = planRes.content.toString().match(/\{[\s\S]*\}/);
     if (match) {
-      const plan = JSON.parse(match[0]);
-      this.logger.log(`Generated Query Plan: ${JSON.stringify(plan)}`);
-      return plan;
+      try {
+        const plan = JSON.parse(match[0]);
+        // Ensure the target is what we identified
+        plan.target = target;
+        this.logger.log(`Generated Query Plan: ${JSON.stringify(plan)}`);
+        return plan;
+      } catch (e) {
+        this.logger.error(`Failed to parse plan JSON: ${match[0]}`);
+      }
     }
     return null;
+  }
+
+  private identifyTarget(question: string): QueryPlan['target'] {
+    const q = question.toLowerCase();
+
+    // 1. Drill Missions (משימות קידוח / משימות)
+    if (q.includes('משימ') || q.includes('mission')) {
+      return 'DrillMission';
+    }
+
+    // 2. Drills (מקדחים)
+    if (q.includes('מקדח') || q.includes('drill')) {
+      return 'Drill';
+    }
+
+    // 3. Clusters (מקבצים)
+    // Priority to Cluster if they ask about quantities directly or "clusters"
+    if (q.includes('מקבץ') || q.includes('cluster')) {
+      return 'Cluster';
+    }
+
+    // 4. Mines (מכרות)
+    if (q.includes('מכרה') || q.includes('מכרות') || q.includes('mine')) {
+      return 'Mine';
+    }
+
+    // 5. Implicit heuristics
+    // If asking about "how many" without a clear noun, or asking about stone types directly
+    // "כמה יש מניאודימיום" -> usually asking about clusters or mines. 
+    // Defaulting to Mine is safer for "where" questions, but "how many" might be Cluster.
+    if (q.includes('כמה') || q.includes('how many') || q.includes('count')) {
+      // If it mentions stone types but not 'mine', it's likely clusters
+      const stoneTypes = ['neodymium', 'dysprosium', 'praseodymium', 'terbium', 'ניאודימיום', 'דיספרוזיום', 'פרסיאודימיום', 'טרביום'];
+      if (stoneTypes.some(s => q.includes(s)) && !q.includes('מכרה') && !q.includes('mine')) {
+        return 'Cluster';
+      }
+    }
+
+    // Default fallback
+    return 'Mine';
   }
 }
