@@ -44,6 +44,12 @@
     "@nx/vitest:test": {
       "cache": true,
       "inputs": ["default", "^production"]
+    },
+    "serve": {
+      "outputStyle": "stream"
+    },
+    "serve-static": {
+      "outputStyle": "stream"
     }
   },
   "release": {
