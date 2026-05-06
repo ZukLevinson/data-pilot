@@ -151,6 +151,32 @@ export class ChatExecutor {
           const val = this.parseValue(rawVal);
           
           switch (operator) {
+            case 'year': {
+              const y = parseInt(val.toString());
+              prismaWhere[key] = { gte: new Date(y, 0, 1), lt: new Date(y + 1, 0, 1) };
+              break;
+            }
+            case 'month': {
+              const s = val.toString();
+              let yr = new Date().getFullYear();
+              let mo = 0;
+              if (s.includes('-')) {
+                const p = s.split('-');
+                yr = parseInt(p[0]);
+                mo = parseInt(p[1]) - 1;
+              } else {
+                mo = parseInt(s) - 1;
+              }
+              prismaWhere[key] = { gte: new Date(yr, mo, 1), lt: new Date(yr, mo + 1, 1) };
+              break;
+            }
+            case 'day': {
+              const d = new Date(val.toString());
+              const nd = new Date(d);
+              nd.setDate(d.getDate() + 1);
+              prismaWhere[key] = { gte: d, lt: nd };
+              break;
+            }
             case 'contains': prismaWhere[key] = { contains: val, mode: 'insensitive' }; break;
             case 'notContains': 
               prismaWhere.NOT = prismaWhere.NOT || [];

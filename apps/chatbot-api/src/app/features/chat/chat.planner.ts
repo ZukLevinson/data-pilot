@@ -25,7 +25,7 @@ Available Query Plan Structure:
   "target": "${target}",
   "limit": number (default 5000),
   "conditions": {
-    "fieldName": { "operator": "contains" | "notContains" | "gt" | "lt" | "after" | "before" | "equals", "value": any },
+    "fieldName": { "operator": "contains" | "notContains" | "gt" | "lt" | "after" | "before" | "equals" | "year" | "month" | "day", "value": any },
     "relationName": { 
       "some" | "every" | "none" | "is": { 
         "subFieldName": { "operator": "...", "value": "..." },
@@ -43,7 +43,10 @@ Current Date & Time: ${new Date().toISOString()}
 Instructions:
 1. Use "conditions" for ALL filters.
 2. For filters on related entities, use the relation name with a relational operator ("some", "every", "none", "is").
-3. **Time Strictness**: If the user asks for a specific date or time (e.g., "at 2024-05-01"), use "operator": "equals". Use "after" or "before" ONLY if explicitly requested.
+3. **Time Strictness**: 
+   - If the user asks for a specific date or time, use "operator": "equals".
+   - If the user asks for a specific YEAR, MONTH, or DAY (e.g. "missions in 2024"), use the corresponding operator.
+   - Use "after" or "before" ONLY if explicitly requested.
 4. **Relation Counts**: If a minimum number of related items is specified, add "minCount": X inside that relation object.
 5. **Chaining vs. Siblings**:
    - If relations are described as a chain (e.g., "Mines with clusters that have missions"), NEST them: Mine -> clusters -> missions.
@@ -52,8 +55,9 @@ Instructions:
 7. For "how many" or "total" questions, use the appropriate "aggregations".
 8. Translate Hebrew terms to their English technical equivalents based on the schema.
 9. Output ONLY the valid JSON object.
-10. Example (Chaining): "Mines with clusters that have missions" -> { "target": "Mine", "conditions": { "clusters": { "some": { "missions": { "some": {} } } } } }
-11. Example (Siblings): "Mines with Neodymium clusters and Drill-1 missions" -> { "target": "Mine", "conditions": { "clusters": { "some": { "stoneType": { "operator": "equals", "value": "Neodymium" } } }, "missions": { "some": { "drill": { "is": { "name": { "operator": "equals", "value": "Drill-1" } } } } } } }`;
+10. Example (Time Granularity): "Mines in May 2024" -> { "target": "Mine", "conditions": { "createdAt": { "operator": "month", "value": "2024-05" } } }
+11. Example (Chaining): "Mines with clusters that have missions" -> { "target": "Mine", "conditions": { "clusters": { "some": { "missions": { "some": {} } } } } }
+12. Example (Siblings): "Mines with Neodymium clusters and Drill-1 missions" -> { "target": "Mine", "conditions": { "clusters": { "some": { "stoneType": { "operator": "equals", "value": "Neodymium" } } }, "missions": { "some": { "drill": { "is": { "name": { "operator": "equals", "value": "Drill-1" } } } } } } }`;
 
     const planRes = await llm.invoke(planPrompt);
     const match = planRes.content.toString().match(/\{[\s\S]*\}/);

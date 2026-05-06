@@ -1,7 +1,7 @@
 export type MessageSender = 'user' | 'bot' | 'system';
 
 export interface QueryCondition {
-  operator: 'contains' | 'notContains' | 'gt' | 'lt' | 'after' | 'before' | 'equals';
+  operator: 'contains' | 'notContains' | 'gt' | 'lt' | 'after' | 'before' | 'equals' | 'year' | 'month' | 'day';
   value: string | number | boolean;
 }
 
