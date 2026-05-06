@@ -276,19 +276,24 @@
   color: #1d4ed8 !important;
 }
 
-/* Map View */
+/* Map View Split Layout */
 .map-view {
   flex: 1;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+}
+
+.map-section {
+  flex: 1.4; /* Map is dominant */
   position: relative;
-  background: #e5e7eb;
-  border-radius: 0; /* Sharp corners as requested */
+  border-bottom: 2px solid #e2e8f0;
 }
 
 app-map-widget {
   height: 100%;
   width: 100%;
-  border-radius: 0;
 }
 
 .map-overlay-info {
@@ -298,26 +303,87 @@ app-map-widget {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(8px);
   padding: 0.5rem 1rem;
-  border-radius: 4px; /* Minimal rounding for overlay */
+  border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   z-index: 1000;
   border: 1px solid #e2e8f0;
 }
 
-.overlay-header {
-  font-weight: 700;
+.table-section {
+  flex: 1;
+  background: white;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.table-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.table-header-row h3 {
+  margin: 0;
+  font-size: 1rem;
   color: #1e293b;
-  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.overlay-details {
+.table-header-row h3 i {
+  color: #3b82f6;
+}
+
+.custom-results-table {
+  flex: 1;
+  border: 1px solid #f1f5f9;
+}
+
+:host ::ng-deep .custom-results-table .p-datatable-thead > tr > th {
+  background: #f8fafc;
+  color: #475569;
   font-size: 0.75rem;
-  color: #64748b;
-  margin-top: 0.2rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 0.75rem;
 }
 
+:host ::ng-deep .custom-results-table .p-datatable-tbody > tr > td {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  color: #334155;
+}
 
-/* Map View */
+.entity-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 600;
+}
+
+.entity-name-cell i {
+  font-size: 0.5rem;
+}
+
+.content-cell {
+  color: #64748b;
+  font-style: italic;
+  max-width: 400px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.empty-table-msg {
+  text-align: center;
+  padding: 2rem !important;
+  color: #94a3b8;
+  font-style: italic;
+}
 
 
 

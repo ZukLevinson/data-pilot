@@ -126,7 +126,7 @@
                                 @if (isMinCount(cond.key)) {
                                   <div class="logic-line count-rule">
                                     <i class="pi pi-filter"></i>
-                                    <span>לפחות <strong>{{ cond.value }}</strong> פריטים תואמים</span>
+                                    <span>לפחות <strong>{{ cond.value }}</strong> {{ title }} תואמים</span>
                                   </div>
                                 } @else if (isRelation(cond.value)) {
                                   <div class="hierarchy-connector">
@@ -138,7 +138,7 @@
                                   <div class="logic-line">
                                     <span class="logic-field">{{ getReadableField($any(cond.key)) }}</span>
                                     <span class="logic-op">{{ getReadableOperator($any(cond.value).operator || $any(cond.value).equals || 'equals') }}</span>
-                                    <span class="logic-val">{{ $any(cond.value).value || cond.value }}</span>
+                                    <span class="logic-val">{{ formatValue($any(cond.value).value || cond.value) }}</span>
                                   </div>
                                 }
                               }
@@ -246,14 +246,70 @@
 
   <!-- Right Side: Global Map View -->
   <div class="map-view">
-    <app-map-widget [sources]="chatService.currentSources()"></app-map-widget>
-    
-    <!-- Legend Overlay (Optional, but looks premium) -->
-    @if (chatService.currentSources().length > 0) {
-      <div class="map-overlay-info">
-        <div class="overlay-header">מציג {{ chatService.currentSources().length }} אזורים</div>
-        <div class="overlay-details">השאילתה האחרונה הופעלה על בסיס נתונים מרחבי.</div>
+    <div class="map-section">
+      <app-map-widget [sources]="chatService.currentSources()"></app-map-widget>
+      
+      <!-- Legend Overlay -->
+      @if (chatService.currentSources().length > 0) {
+        <div class="map-overlay-info">
+          <div class="overlay-header">מציג {{ chatService.currentSources().length }} אזורים</div>
+          <div class="overlay-details">השאילתה האחרונה הופעלה על בסיס נתונים מרחבי.</div>
+        </div>
+      }
+    </div>
+
+    <!-- Results Table Section -->
+    <div class="table-section">
+      <div class="table-header-row">
+        <h3>
+          <i class="pi pi-list"></i>
+          תיקייה
+        </h3>
+        <p-badge [value]="chatService.currentSources().length" severity="info"></p-badge>
       </div>
-    }
+
+      <p-table 
+        [value]="chatService.currentSources()" 
+        [paginator]="true" 
+        [rows]="10" 
+        [showCurrentPageReport]="true"
+        currentPageReportTemplate="מציג {first} עד {last} מתוך {totalRecords}"
+        [rowsPerPageOptions]="[10, 25, 50]"
+        styleClass="p-datatable-sm p-datatable-gridlines custom-results-table"
+        [scrollable]="true"
+        scrollHeight="flex"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th style="width: 25%">שם</th>
+            <th style="width: 15%">סוג</th>
+            <th>תיאור</th>
+            <th style="width: 80px">פעולות</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-source>
+          <tr>
+            <td>
+              <div class="entity-name-cell">
+                <i class="pi pi-circle-fill" [style.color]="source.color"></i>
+                {{ source.name }}
+              </div>
+            </td>
+            <td>
+              <p-tag [value]="getReadableTarget(source.type)" severity="secondary" [style]="{fontSize: '10px'}"></p-tag>
+            </td>
+            <td class="content-cell">{{ source.content }}</td>
+            <td>
+              <p-button (onClick)="zoomTo(source.id)" icon="pi pi-search-plus" [rounded]="true" [text]="true" size="small" pTooltip="התמקד במפה"></p-button>
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="4" class="empty-table-msg">אין נתונים להצגה. בצע שאילתה כדי לראות תוצאות.</td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
   </div>
 </div>

@@ -82,6 +82,17 @@ async function main() {
 
     console.log(`Inserting ${TOTAL_MISSIONS} Drill Missions...`);
     const mineEntities = await prisma.mine.findMany();
+    
+    // Map clusters for faster lookup
+    const allClusters = await prisma.cluster.findMany({ select: { id: true, mineId: true, stoneType: true } });
+    const clusterMap = new Map<string, string>();
+    for (const c of allClusters) {
+      // If multiple clusters of same type in mine, just pick one
+      if (!clusterMap.has(`${c.mineId}_${c.stoneType}`)) {
+        clusterMap.set(`${c.mineId}_${c.stoneType}`, c.id);
+      }
+    }
+
     const missionBatchSize = 1000;
     
     for (let i = 0; i < TOTAL_MISSIONS; i += missionBatchSize) {
@@ -94,17 +105,20 @@ async function main() {
         const drill = drillEntities[Math.floor(Math.random() * drillEntities.length)];
         const stoneType = stoneTypes[Math.floor(Math.random() * stoneTypes.length)];
         
+        const clusterId = clusterMap.get(`${mine.id}_${stoneType}`);
+        const clusterVal = clusterId ? `'${clusterId}'` : 'NULL';
+
         // Date spread across the last 2 years and next 2 years
         const now = new Date();
         const twoYearsMs = 2 * 365 * 24 * 60 * 60 * 1000;
         const offsetMs = (Math.random() * 2 - 1) * twoYearsMs;
         const missionDate = new Date(now.getTime() + offsetMs);
         
-        missionValues.push(`('${missionId}', '${stoneType}', '${missionDate.toISOString()}', '${drill.id}', '${mine.id}', NOW())`);
+        missionValues.push(`('${missionId}', '${stoneType}', '${missionDate.toISOString()}', '${drill.id}', '${mine.id}', ${clusterVal}, NOW())`);
       }
       
       await prisma.$executeRawUnsafe(
-        `INSERT INTO "DrillMission" (id, stone_type, date, drill_id, mine_id, created_at) VALUES ${missionValues.join(',')}`
+        `INSERT INTO "DrillMission" (id, stone_type, date, drill_id, mine_id, cluster_id, created_at) VALUES ${missionValues.join(',')}`
       );
     }
 

@@ -16,9 +16,9 @@ Target Entity: ${target}
 
 Database Schema & Relations:
 - Mine: id, name, geom (location). Relations: [clusters (many), missions (many)]
-- Cluster: id, mineId, stoneType, quantity, geom (location). Relations: [mine (one)]
+- Cluster: id, mineId, stoneType, quantity, geom (location). Relations: [mine (one), missions (many)]
 - Drill: id, name, supportedStoneTypes. Relations: [missions (many)]
-- DrillMission: id, drillId, mineId, stoneType, date. Relations: [mine (one), drill (one)]
+- DrillMission: id, drillId, mineId, clusterId, stoneType, date. Relations: [mine (one), drill (one), cluster (one)]
 
 Available Query Plan Structure:
 {
@@ -38,19 +38,22 @@ Available Query Plan Structure:
   ]
 }
 
+Current Date & Time: ${new Date().toISOString()}
+
 Instructions:
 1. Use "conditions" for ALL filters.
 2. For filters on related entities, use the relation name with a relational operator ("some", "every", "none", "is").
-3. **Relation Counts**: If a minimum number of related items is specified, add "minCount": X inside that relation object.
-4. **Chaining vs. Siblings**:
+3. **Time Strictness**: If the user asks for a specific date or time (e.g., "at 2024-05-01"), use "operator": "equals". Use "after" or "before" ONLY if explicitly requested.
+4. **Relation Counts**: If a minimum number of related items is specified, add "minCount": X inside that relation object.
+5. **Chaining vs. Siblings**:
    - If relations are described as a chain (e.g., "Mines with clusters that have missions"), NEST them: Mine -> clusters -> missions.
    - If relations are described as parallel (e.g., "Mines with clusters and missions"), keep them as siblings in the parent "conditions".
-5. **Attribute Attribution**: Carefully determine which entity each condition applies to.
-6. For "how many" or "total" questions, use the appropriate "aggregations".
-7. Translate Hebrew terms to their English technical equivalents based on the schema.
-8. Output ONLY the valid JSON object.
-9. Example (Chaining): "Mines with clusters that have missions" -> { "target": "Mine", "conditions": { "clusters": { "some": { "missions": { "some": {} } } } } }
-10. Example (Siblings): "Mines with Neodymium clusters and Drill-1 missions" -> { "target": "Mine", "conditions": { "clusters": { "some": { "stoneType": { "operator": "equals", "value": "Neodymium" } } }, "missions": { "some": { "drill": { "is": { "name": { "operator": "equals", "value": "Drill-1" } } } } } } }`;
+6. **Attribute Attribution**: Carefully determine which entity each condition applies to.
+7. For "how many" or "total" questions, use the appropriate "aggregations".
+8. Translate Hebrew terms to their English technical equivalents based on the schema.
+9. Output ONLY the valid JSON object.
+10. Example (Chaining): "Mines with clusters that have missions" -> { "target": "Mine", "conditions": { "clusters": { "some": { "missions": { "some": {} } } } } }
+11. Example (Siblings): "Mines with Neodymium clusters and Drill-1 missions" -> { "target": "Mine", "conditions": { "clusters": { "some": { "stoneType": { "operator": "equals", "value": "Neodymium" } } }, "missions": { "some": { "drill": { "is": { "name": { "operator": "equals", "value": "Drill-1" } } } } } } }`;
 
     const planRes = await llm.invoke(planPrompt);
     const match = planRes.content.toString().match(/\{[\s\S]*\}/);

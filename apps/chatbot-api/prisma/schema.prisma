@@ -27,6 +27,7 @@ model Cluster {
   mineId    String                   @map("mine_id") @db.Uuid
   createdAt DateTime                 @default(now()) @map("created_at")
   mine      Mine                     @relation(fields: [mineId], references: [id])
+  missions  DrillMission[]
 
   @@map("Cluster")
 }
@@ -45,11 +46,13 @@ model DrillMission {
   id        String   @id @default(uuid()) @db.Uuid
   mineId    String   @map("mine_id") @db.Uuid
   drillId   String   @map("drill_id") @db.Uuid
+  clusterId String?  @map("cluster_id") @db.Uuid
   stoneType String   @map("stone_type")
   date      DateTime
   createdAt DateTime @default(now()) @map("created_at")
   drill     Drill    @relation(fields: [drillId], references: [id])
   mine      Mine     @relation(fields: [mineId], references: [id])
+  cluster   Cluster? @relation(fields: [clusterId], references: [id])
 
   @@map("DrillMission")
 }

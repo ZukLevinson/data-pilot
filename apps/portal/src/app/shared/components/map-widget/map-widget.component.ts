@@ -65,6 +65,22 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.updateLayers();
   }
 
+  public zoomToEntity(id: string) {
+    if (!this.map || !this.geoJsonLayer) return;
+    
+    const layers = (this.geoJsonLayer as any).getLayers();
+    const targetLayer = layers.find((l: any) => l.feature?.properties?.id === id);
+    
+    if (targetLayer) {
+      if (targetLayer.getBounds) {
+        this.map.fitBounds(targetLayer.getBounds(), { padding: [50, 50], maxZoom: 15 });
+      } else if (targetLayer.getLatLng) {
+        this.map.setView(targetLayer.getLatLng(), 15);
+      }
+      targetLayer.openPopup();
+    }
+  }
+
   private updateLayers() {
     if (!this.map || !this.L) {
       console.log('Map or Leaflet not ready for updateLayers');
@@ -72,23 +88,11 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
     }
     const L = this.L;
 
-    console.log(`Updating map with ${this.sources.length} sources`);
-
     if (this.geoJsonLayer) {
       this.map.removeLayer(this.geoJsonLayer);
     }
 
-    const geoJsonFeatures: {
-      type: 'Feature',
-      properties: {
-        id: string;
-        name: string;
-        type: string;
-        color: string;
-        content: string;
-      },
-      geometry: unknown
-    }[] = [];
+    const geoJsonFeatures: any[] = [];
 
     this.sources.forEach(source => {
       if (source.wkt) {
@@ -110,76 +114,66 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
         } catch (e) {
           console.error('Failed to parse WKT:', source.wkt, e);
         }
-      } else {
-        console.warn('Source missing WKT:', source);
       }
     });
 
     if (geoJsonFeatures.length > 0) {
-      console.log(`Adding ${geoJsonFeatures.length} features to map`);
-      this.geoJsonLayer = L.geoJSON(geoJsonFeatures as unknown as Parameters<typeof L.geoJSON>[0], {
-        style: (feature: unknown) => {
-          const f = feature as { properties: { type: string; color?: string } };
-          const properties = f.properties;
+      this.geoJsonLayer = L.geoJSON(geoJsonFeatures, {
+        onEachFeature: (feature: any, layer: any) => {
+          const props = feature.properties;
+          layer.bindPopup(`
+            <div style="font-family: 'Open Sans', sans-serif;">
+              <strong style="color: #1e293b; font-size: 14px;">${props.name}</strong>
+              <div style="font-size: 11px; color: #64748b; margin-top: 4px;">${props.type}</div>
+              <p style="font-size: 12px; margin-top: 8px; color: #334155;">${props.content}</p>
+            </div>
+          `);
+        },
+        style: (feature: any) => {
+          const properties = feature.properties;
           const type = properties.type;
           if (type === 'Mine') {
             return {
               color: '#1e3a8a',
-              weight: 4,
+              weight: 3,
               opacity: 1,
               fillColor: '#3b82f6',
-              fillOpacity: 0.4,
+              fillOpacity: 0.3,
             };
-          } else if (type === 'Mission') {
+          } else if (type === 'DrillMission') {
             return {
-              color: '#4c1d95', // Deep Violet border
-              weight: 5,
+              color: '#4c1d95',
+              weight: 4,
               opacity: 1,
-              fillColor: '#a855f7', // Bright Violet fill
-              fillOpacity: 0.7,
-              dashArray: '6, 4' // Dashed border to indicate "active operation"
+              fillColor: '#a855f7',
+              fillOpacity: 0.5,
+              dashArray: '5, 5'
             };
           }
           return {
             color: properties.color || '#3b82f6',
-            weight: 1,
-            opacity: 0.6,
+            weight: 2,
+            opacity: 0.8,
             fillColor: properties.color || '#3b82f6',
             fillOpacity: 0.2,
           };
         },
-        pointToLayer: (feature: unknown, latlng: { lat: number; lng: number }) => {
-          const f = feature as { properties: { type: string; color?: string } };
-          const properties = f.properties;
+        pointToLayer: (feature: any, latlng: any) => {
+          const properties = feature.properties;
           const type = properties.type;
           
           if (type === 'Cluster') {
             const icon = L.divIcon({
               className: 'cluster-icon',
-              html: `
-                <div style="
-                  background-color: ${properties.color || '#f59e0b'};
-                  color: white;
-                  width: 24px;
-                  height: 24px;
-                  border-radius: 50%;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  border: 2px solid white;
-                  box-shadow: 0 0 10px rgba(0,0,0,0.4);
-                ">
-                  <i class="pi pi-database" style="font-size: 12px;"></i>
-                </div>
-              `,
-              iconSize: [24, 24],
-              iconAnchor: [12, 12]
+              html: `<div style="background-color: ${properties.color || '#f59e0b'}; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.3);"><i class="pi pi-database" style="font-size: 10px;"></i></div>`,
+              iconSize: [20, 20],
+              iconAnchor: [10, 10]
             });
-            return L.marker(latlng as LatLngExpression, { icon });
+            return L.marker(latlng, { icon });
           }
 
-          return L.circleMarker(latlng as LatLngExpression, {
-            radius: 8,
+          return L.circleMarker(latlng, {
+            radius: 6,
             fillColor: properties.color || '#3b82f6',
             color: '#fff',
             weight: 2,
@@ -194,7 +188,6 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
         this.map.fitBounds(bounds, { padding: [20, 20] });
       }
     } else {
-      console.warn('No GeoJSON features generated from sources - Clearing Layer');
       this.geoJsonLayer = undefined;
     }
   }

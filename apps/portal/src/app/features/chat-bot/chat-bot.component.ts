@@ -13,18 +13,27 @@ import { ScrollPanel } from 'primeng/scrollpanel';
 import { MapWidgetComponent } from '../../shared/components/map-widget/map-widget.component';
 import { MarkdownPipe } from '../../shared/pipes/markdown.pipe';
 
+import { TableModule } from 'primeng/table';
+import { InputTextModule } from 'primeng/inputtext';
+import { TagModule } from 'primeng/tag';
+import { TooltipModule } from 'primeng/tooltip';
+import { DatePipe } from '@angular/common';
+
 @Component({
   selector: 'app-chat-bot',
   standalone: true,
-  imports: [CommonModule, FormsModule, Textarea, Button, Badge, Avatar, Chip, Drawer, ScrollPanel, MapWidgetComponent, MarkdownPipe],
+  imports: [CommonModule, FormsModule, Textarea, Button, Badge, Avatar, Chip, Drawer, ScrollPanel, MapWidgetComponent, MarkdownPipe, TableModule, InputTextModule, TagModule, TooltipModule],
+  providers: [DatePipe],
   templateUrl: './chat-bot.component.html',
   styleUrls: ['./chat-bot.component.css']
 })
 export class ChatBotComponent implements OnInit {
   public chatService = inject(ChatService);
+  private datePipe = inject(DatePipe);
   
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
   @ViewChild('messageInput') private messageInput!: ElementRef;
+  @ViewChild(MapWidgetComponent) private mapWidget!: MapWidgetComponent;
 
   inputText = signal<string>('');
 
@@ -54,6 +63,12 @@ export class ChatBotComponent implements OnInit {
     
     this.scrollToBottom();
     this.focusInput();
+  }
+
+  zoomTo(id: string) {
+    if (this.mapWidget) {
+      this.mapWidget.zoomToEntity(id);
+    }
   }
 
   selectHistory(item: SavedQuery) {
@@ -163,5 +178,15 @@ export class ChatBotComponent implements OnInit {
 
   isMinCount(key: any): boolean {
     return key === 'minCount';
+  }
+
+  formatValue(value: any): string {
+    if (typeof value === 'string' && value.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+      const date = new Date(value);
+      if (!isNaN(date.getTime())) {
+        return this.datePipe.transform(date, 'dd/MM/yyyy') || value;
+      }
+    }
+    return value;
   }
 }

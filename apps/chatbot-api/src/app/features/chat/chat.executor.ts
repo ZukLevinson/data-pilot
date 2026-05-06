@@ -127,15 +127,29 @@ export class ChatExecutor {
     });
   }
 
-  private mapConditionsToPrisma(conditions: Record<string, any>): any {
-    if (!conditions) return {};
+  private parseValue(val: any): any {
+    if (typeof val === 'string' && val.length >= 10) {
+      // Basic check for YYYY-MM-DD or ISO strings
+      if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
+        const date = new Date(val);
+        if (!isNaN(date.getTime())) return date;
+      }
+    }
+    return val;
+  }
+
+  private mapConditionsToPrisma(conditions: any): any {
     const prismaWhere: any = {};
+    if (!conditions) return prismaWhere;
+
     for (const [key, value] of Object.entries(conditions)) {
-      if (key === 'minCount') continue; // Handled separately in executePlan
+      if (key === 'minCount') continue; 
 
       if (typeof value === 'object' && value !== null) {
         if ('operator' in value && 'value' in value) {
-          const { operator, value: val } = value;
+          const { operator, value: rawVal } = value;
+          const val = this.parseValue(rawVal);
+          
           switch (operator) {
             case 'contains': prismaWhere[key] = { contains: val, mode: 'insensitive' }; break;
             case 'notContains': 
@@ -150,15 +164,15 @@ export class ChatExecutor {
             default: prismaWhere[key] = val;
           }
         } else {
-          // Check for relational operators
-          const relOps = ['some', 'every', 'none', 'is'];
-          const foundOp = relOps.find(op => op in (value as any));
+          // Recursive call for nested relations (some, every, none, is)
+          const nestedOps = ['some', 'every', 'none', 'is'];
+          const foundOp = nestedOps.find(op => op in value);
           
           if (foundOp) {
             prismaWhere[key] = { [foundOp]: this.mapConditionsToPrisma((value as any)[foundOp]) };
           } else {
-            // Regular nested object (like field: { equals: val } if not using our Condition structure)
-            prismaWhere[key] = this.mapConditionsToPrisma(value);
+            // It might be a flat object with multiple operators or a direct value
+            prismaWhere[key] = value;
           }
         }
       } else {
