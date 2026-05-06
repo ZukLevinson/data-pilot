@@ -42,38 +42,77 @@ export class ChatService {
 
     yield { status: 'מריץ שאילתה מובנית...', queryPlan };
 
-    let entities: EntitySearchResult[] = [];
     try {
-      entities = await this.executor.executePlan(queryPlan, question);
-    } catch (e) {
-      this.logger.error('Query execution failed', e);
-      yield { content: 'אירעה שגיאה בעת הרצת השאילתה המובנית.' };
-      return;
-    }
+      const executorStream = this.executor.executePlan(queryPlan, question);
+      
+      // Get the first batch (names/counts) to show results on map immediately
+      const firstBatch = await executorStream.next();
+      if (!firstBatch.done && firstBatch.value.length > 0) {
+        yield { sources: firstBatch.value, mode };
+      }
 
-    yield { sources: entities, mode };
+      yield { status: 'מנסח תשובה סופית...' };
 
-    yield { status: 'מנסח תשובה סופית...' };
+      const totalCount = queryPlan.totalCount || 0;
+      const isDisplayOnly = /show|display|list|view|תראה|תציג|מפה|רשימה|תפרוס|הצג/i.test(question) && !queryPlan.aggregations?.length;
 
-    const prompt = `You are a Rare Earth Mining Virtualization Expert.
+      if (isDisplayOnly) {
+        const targetMap: Record<string, string> = { 'Mine': 'מכרות', 'Cluster': 'מקבצים', 'DrillMission': 'משימות', 'Drill': 'מקדחים' };
+        const label = targetMap[queryPlan.target] || queryPlan.target;
+        yield { content: `זיהיתי ${totalCount} ${label} העונים על דרישת הסינון שלך. הממצאים מוצגים כעת על המפה.` };
+        
+        // Just stream the rest of the entities without LLM
+        for await (const nextEntities of executorStream) {
+          yield { sources: nextEntities, mode: 'append' };
+        }
+        return;
+      }
+
+      const prompt = `You are a Rare Earth Mining Virtualization Expert.
 Question: "${question}"
 Query Plan Used: ${JSON.stringify(queryPlan)}
-Results Found: ${entities.length}
+Results Found: ${totalCount}
 
 Instructions:
 1. Respond ONLY based on the results found. 
 2. DO NOT mention total records in the database or other unrelated entities.
 3. Keep the answer professional and focused on the identified ${queryPlan.target}s.
-4. If results were found:
-   - Mention the total count found (${entities.length}) and that they are displayed on the map.
+4. If results were found, mention that ${totalCount} items were identified and are displayed on the map.
 5. If NO results were found, inform the user briefly.
 6. Mention that the query plan has been saved.
-7. Focus strictly on the results and the map.
-Answer in Hebrew.`;
+7. Answer in Hebrew.`;
 
-    const stream = await this.llm.stream(prompt);
-    for await (const chunk of stream) {
-      if (chunk.content) yield { content: chunk.content as string };
+      // Start the LLM stream
+      const llmStream = await this.llm.stream(prompt);
+
+      // Consume the rest of the executor stream and the LLM stream
+      const llmIterator = llmStream[Symbol.asyncIterator]();
+      
+      let llmDone = false;
+      let executorDone = false;
+
+      while (!llmDone || !executorDone) {
+        if (!executorDone) {
+          const nextExecutor = await executorStream.next();
+          if (!nextExecutor.done) {
+            yield { sources: nextExecutor.value, mode: 'append' };
+          } else {
+            executorDone = true;
+          }
+        }
+
+        if (!llmDone) {
+          const nextLlm = await llmIterator.next();
+          if (!nextLlm.done) {
+            if (nextLlm.value.content) yield { content: nextLlm.value.content as string };
+          } else {
+            llmDone = true;
+          }
+        }
+      }
+    } catch (e) {
+      this.logger.error('Stream processing failed', e);
+      yield { content: 'אירעה שגיאה בעת עיבוד הבקשה.' };
     }
   }
 

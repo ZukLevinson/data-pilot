@@ -7,55 +7,50 @@ export class ChatPlanner {
   private readonly logger = new Logger(ChatPlanner.name);
 
   async generatePlan(llm: ChatOpenAI, question: string): Promise<QueryPlan | null> {
-    const target = this.identifyTarget(question);
+    const target = await this.identifyTarget(llm, question);
     this.logger.log(`Identified target: ${target} for question: "${question}"`);
 
-    const planPrompt = `You are a SQL Query Planner for a Rare Earth Mining database.
+    const planPrompt = `You are an expert SQL Query Planner for a Rare Earth Mining database.
 Question: "${question}"
-Target Entity: ${target} (This has been pre-identified, please stick to it)
+Target Entity: ${target}
 
-Schema:
-- Mine (Hebrew: מכרה): name
-- Cluster (Hebrew: מקבץ): stoneType, quantity
-- Drill: name, supportedStoneTypes
-- DrillMission: stoneType, date
+Database Schema & Relations:
+- Mine: id, name, geom (location). Relations: [clusters (many), missions (many)]
+- Cluster: id, mineId, stoneType, quantity, geom (location). Relations: [mine (one)]
+- Drill: id, name, supportedStoneTypes. Relations: [missions (many)]
+- DrillMission: id, drillId, mineId, stoneType, date. Relations: [mine (one), drill (one)]
 
-Generate a JSON Query Plan for the target "${target}".
-Structure:
+Available Query Plan Structure:
 {
   "target": "${target}",
-  "limit": number (optional, default to 5000 if not specified),
+  "limit": number (default 5000),
   "conditions": {
-    "fieldName": { "operator": "contains" | "notContains" | "gt" | "lt" | "after" | "before", "value": any }
-  },
-  "mineConditions": { "name": { "operator": "contains" | "notContains", "value": string } },
-  "clusterConditions": [
-    {
-      "stoneType": { "operator": "contains" | "notContains", "value": string },
-      "quantity": { "operator": "gt" | "lt", "value": number },
-      "minCount": number
+    "fieldName": { "operator": "contains" | "notContains" | "gt" | "lt" | "after" | "before" | "equals", "value": any },
+    "relationName": { 
+      "some" | "every" | "none" | "is": { 
+        "subFieldName": { "operator": "...", "value": "..." },
+        "subRelationName": { ... }
+      }
     }
-  ],
+  },
   "aggregations": [
-    { "field": "quantity", "type": "sum" | "avg" | "min" | "max" | "count" }
+    { "field": string, "type": "sum" | "avg" | "min" | "max" | "count" }
   ]
 }
 
-- If the user asks for "total", "sum", "average", "mean", "min", "max" of a numeric field (like quantity), use the "aggregations" field.
-- If the user asks "how many" (כמה מקבצים, כמה מכרות) or "number of", use the "count" aggregation type.
-
-- Relational filtering: If target is "DrillMission", "mineConditions" filters the mine it's in, and "clusterConditions" filters the clusters of that specific mine.
-- Hebrew mappings: מכרה = Mine, מקבץ = Cluster, משימה = DrillMission.
-
-Important:
-1. Minerals (Neodymium, Dysprosium, etc.) are ONLY found in Clusters. 
-2. If the user asks for "Mines containing [Stone]", target is "Mine" and put the stone filter in "clusterConditions". NEVER put the stone name in Mine:name.
-3. Use "stoneType" (exactly) for mineral names. 
-4. ALWAYS use the English technical name for minerals even if the user asks in Hebrew.
-5. Output ONLY valid JSON.
-6. Example: "משימות קידוח במכרות עם Neodymium" -> target: "DrillMission", clusterConditions: [{ "stoneType": "Neodymium" }]
-7. Multi-Condition: For "Both A and B", use TWO objects in the clusterConditions array.
-8. Counts: If asking "How many" (כמה), use count aggregation.`;
+Instructions:
+1. Use "conditions" for ALL filters.
+2. For filters on related entities, use the relation name with a relational operator ("some", "every", "none", "is").
+3. **Relation Counts**: If a minimum number of related items is specified, add "minCount": X inside that relation object.
+4. **Chaining vs. Siblings**:
+   - If relations are described as a chain (e.g., "Mines with clusters that have missions"), NEST them: Mine -> clusters -> missions.
+   - If relations are described as parallel (e.g., "Mines with clusters and missions"), keep them as siblings in the parent "conditions".
+5. **Attribute Attribution**: Carefully determine which entity each condition applies to.
+6. For "how many" or "total" questions, use the appropriate "aggregations".
+7. Translate Hebrew terms to their English technical equivalents based on the schema.
+8. Output ONLY the valid JSON object.
+9. Example (Chaining): "Mines with clusters that have missions" -> { "target": "Mine", "conditions": { "clusters": { "some": { "missions": { "some": {} } } } } }
+10. Example (Siblings): "Mines with Neodymium clusters and Drill-1 missions" -> { "target": "Mine", "conditions": { "clusters": { "some": { "stoneType": { "operator": "equals", "value": "Neodymium" } } }, "missions": { "some": { "drill": { "is": { "name": { "operator": "equals", "value": "Drill-1" } } } } } } }`;
 
     const planRes = await llm.invoke(planPrompt);
     const match = planRes.content.toString().match(/\{[\s\S]*\}/);
@@ -73,43 +68,35 @@ Important:
     return null;
   }
 
-  private identifyTarget(question: string): QueryPlan['target'] {
-    const q = question.toLowerCase();
+  private async identifyTarget(llm: ChatOpenAI, question: string): Promise<QueryPlan['target']> {
+    const identificationPrompt = `Identify the primary subject entity requested in the user's question.
+Even if the question mentions other entities for filtering purposes, identify the main entity the user wants to SEE or LIST.
 
-    // 1. Drill Missions (משימות קידוח / משימות)
-    if (q.includes('משימ') || q.includes('mission')) {
-      return 'DrillMission';
+Entities:
+- Mine: A physical mining site.
+- Cluster: A specific mineral deposit. Target this ONLY if the user wants to list the deposits themselves (e.g., "list all neodymium clusters").
+- Drill: Mining machinery. Target this if the user wants to see equipment.
+- DrillMission: A scheduled operation. Target this if the user asks about tasks, plans, or missions.
+
+If the user asks for "<Entity> containing X" or "<Entity> with Y <Other Entities>", the target is still <Entity>. Also, in this type of questions, the other entities are just for filtering purposes and should be handled with "conditions" and "relationName" in the query plan.
+If the user asks for "how many <Entity> ...", the target is still the <Entity> and should be handled with "aggregations".
+
+Question: "${question}"
+
+Respond with ONLY the entity name: Mine, Cluster, Drill, or DrillMission.`;
+
+    try {
+      const res = await llm.invoke(identificationPrompt);
+      const content = res.content.toString().toLowerCase();
+      
+      if (content.includes('drillmission')) return 'DrillMission';
+      if (content.includes('drill')) return 'Drill';
+      if (content.includes('cluster')) return 'Cluster';
+      if (content.includes('mine')) return 'Mine';
+    } catch (e) {
+      this.logger.warn(`Failed to identify target via LLM, falling back to Mine: ${e.message}`);
     }
 
-    // 2. Drills (מקדחים)
-    if (q.includes('מקדח') || q.includes('drill')) {
-      return 'Drill';
-    }
-
-    // 3. Clusters (מקבצים)
-    // Priority to Cluster if they ask about quantities directly or "clusters"
-    if (q.includes('מקבץ') || q.includes('cluster')) {
-      return 'Cluster';
-    }
-
-    // 4. Mines (מכרות)
-    if (q.includes('מכרה') || q.includes('מכרות') || q.includes('mine')) {
-      return 'Mine';
-    }
-
-    // 5. Implicit heuristics
-    // If asking about "how many" without a clear noun, or asking about stone types directly
-    // "כמה יש מניאודימיום" -> usually asking about clusters or mines. 
-    // Defaulting to Mine is safer for "where" questions, but "how many" might be Cluster.
-    if (q.includes('כמה') || q.includes('how many') || q.includes('count')) {
-      // If it mentions stone types but not 'mine', it's likely clusters
-      const stoneTypes = ['neodymium', 'dysprosium', 'praseodymium', 'terbium', 'ניאודימיום', 'דיספרוזיום', 'פרסיאודימיום', 'טרביום'];
-      if (stoneTypes.some(s => q.includes(s)) && !q.includes('מכרה') && !q.includes('mine')) {
-        return 'Cluster';
-      }
-    }
-
-    // Default fallback
     return 'Mine';
   }
 }

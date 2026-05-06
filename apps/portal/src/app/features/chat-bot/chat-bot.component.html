@@ -103,52 +103,50 @@
                     </div>
                   }
 
-                  @if ((message.queryPlan.conditions && (message.queryPlan.conditions | json) !== '{}') || message.queryPlan.clusterConditions) {
+                  @if (message.queryPlan.limit) {
+                    <div class="plan-item">
+                      <span class="label">מגבלת תוצאות:</span>
+                      <span class="value">{{ message.queryPlan.limit }}</span>
+                    </div>
+                  }
+
+                  @if (message.queryPlan.conditions && (message.queryPlan.conditions | json) !== '{}') {
                     <div class="plan-item full">
                       <span class="label">לוגיקת סינון מרחבית:</span>
                       
                       <div class="logic-hierarchy">
-                        <!-- Main Entity -->
-                        <div class="hierarchy-node main">
-                          <div class="node-header">
-                            <i [class]="'pi ' + (message.queryPlan.target === 'Mine' ? 'pi-map' : 'pi-search')"></i>
-                            <span>{{ getReadableTarget(message.queryPlan.target) }}</span>
-                          </div>
-                          <div class="node-body">
-                            @for (cond of message.queryPlan.conditions | keyvalue; track cond.key) {
-                              <div class="logic-line">
-                                <span class="logic-field">{{ getReadableField(cond.key) }}</span>
-                                <span class="logic-op">{{ getReadableOperator($any(cond.value).operator || $any(cond.value).equals || 'equals') }}</span>
-                                <span class="logic-val">{{ $any(cond.value).value || cond.value }}</span>
-                              </div>
-                            }
-                          </div>
-                        </div>
-
-                        <!-- Relation Arrow -->
-                        @for (clusterCond of getClusterConditions(message.queryPlan); track clusterCond) {
-                          <div class="hierarchy-connector">
-                            <i class="pi pi-angle-double-down"></i>
-                            <span class="connector-label">מכיל רכיבים פנימיים מסוג:</span>
-                          </div>
-
-                          <!-- Related Entity (Cluster) -->
-                          <div class="hierarchy-node relation">
+                        <ng-template #conditionNode let-conditions="conditions" let-title="title" let-isRoot="isRoot">
+                          <div class="hierarchy-node" [class.main]="isRoot" [class.relation]="!isRoot">
                             <div class="node-header">
-                              <i class="pi pi-database"></i>
-                              <span>מקבץ (Cluster)</span>
+                              <i [class]="'pi ' + (isRoot ? (message.queryPlan!.target === 'Mine' ? 'pi-map' : 'pi-search') : 'pi-database')"></i>
+                              <span>{{ title }}</span>
                             </div>
                             <div class="node-body">
-                              @for (cond of clusterCond | keyvalue; track cond.key) {
-                                <div class="logic-line">
-                                  <span class="logic-field">{{ getReadableField(cond.key) }}</span>
-                                  <span class="logic-op">{{ getReadableOperator($any(cond.value).operator || 'equals') }}</span>
-                                  <span class="logic-val">{{ $any(cond.value).value || cond.value }}</span>
-                                </div>
+                              @for (cond of conditions | keyvalue; track cond.key) {
+                                @if (isMinCount(cond.key)) {
+                                  <div class="logic-line count-rule">
+                                    <i class="pi pi-filter"></i>
+                                    <span>לפחות <strong>{{ cond.value }}</strong> פריטים תואמים</span>
+                                  </div>
+                                } @else if (isRelation(cond.value)) {
+                                  <div class="hierarchy-connector">
+                                    <i class="pi pi-angle-double-down"></i>
+                                    <span class="connector-label">{{ getReadableOperator(getRelationOp(cond.value)) }} {{ getReadableField($any(cond.key)) }}:</span>
+                                  </div>
+                                  <ng-container *ngTemplateOutlet="conditionNode; context: { conditions: getRelationValue(cond.value), title: getReadableField($any(cond.key)), isRoot: false }"></ng-container>
+                                } @else {
+                                  <div class="logic-line">
+                                    <span class="logic-field">{{ getReadableField($any(cond.key)) }}</span>
+                                    <span class="logic-op">{{ getReadableOperator($any(cond.value).operator || $any(cond.value).equals || 'equals') }}</span>
+                                    <span class="logic-val">{{ $any(cond.value).value || cond.value }}</span>
+                                  </div>
+                                }
                               }
                             </div>
                           </div>
-                        }
+                        </ng-template>
+
+                        <ng-container *ngTemplateOutlet="conditionNode; context: { conditions: message.queryPlan.conditions, title: getReadableTarget(message.queryPlan.target), isRoot: true }"></ng-container>
                       </div>
                     </div>
                   }

@@ -5,9 +5,13 @@ export interface QueryCondition {
   value: string | number | boolean;
 }
 
-export interface ClusterCondition {
-  stoneType?: QueryCondition;
-  quantity?: QueryCondition;
+export type ConditionValue = string | number | boolean | QueryCondition | RelationFilter;
+
+export interface RelationFilter {
+  some?: Record<string, ConditionValue>;
+  every?: Record<string, ConditionValue>;
+  none?: Record<string, ConditionValue>;
+  is?: Record<string, ConditionValue>;
   minCount?: number;
 }
 
@@ -19,9 +23,7 @@ export interface Aggregation {
 export interface QueryPlan {
   target: 'Mine' | 'Cluster' | 'Drill' | 'DrillMission';
   limit?: number;
-  conditions?: Record<string, QueryCondition | string | number | boolean>;
-  mineConditions?: Record<string, QueryCondition>;
-  clusterConditions?: ClusterCondition[];
+  conditions?: Record<string, ConditionValue>;
   aggregations?: Aggregation[];
   generatedSql?: string;
   totalCount?: number;

@@ -337,6 +337,12 @@ app-map-widget {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.hierarchy-node:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .hierarchy-node.main {
@@ -376,8 +382,14 @@ app-map-widget {
   margin-bottom: 4px;
 }
 
-.logic-line:last-child {
-  margin-bottom: 0;
+.logic-line.count-rule {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: #92400e;
+  font-weight: 600;
+  margin: 6px 0;
 }
 
 .logic-field {
@@ -407,14 +419,52 @@ app-map-widget {
   color: #94a3b8;
 }
 
-.hierarchy-connector i {
-  font-size: 1rem;
-}
-
 .connector-label {
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
+}
+
+.plan-item.full {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.aggregation-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.agg-result-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  padding: 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.agg-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.agg-label {
+  font-size: 0.65rem;
+  color: #64748b;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.agg-value {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1e293b;
 }
 
 :host ::ng-deep .target-chip {
@@ -423,31 +473,5 @@ app-map-widget {
   font-size: 0.75rem !important;
   font-weight: 700 !important;
   height: 24px !important;
-}
-
-.plan-footer-sql {
-  background: #1e293b;
-  padding: 10px 14px;
-  border-top: 1px solid #334155;
-}
-
-.sql-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: #94a3b8;
-  margin-bottom: 4px;
-}
-
-.sql-code {
-  display: block;
-  font-family: 'Courier New', monospace;
-  font-size: 0.75rem;
-  color: #38bdf8; /* Sky Blue for SQL */
-  line-height: 1.4;
-  word-break: break-all;
-  white-space: pre-wrap;
 }
 

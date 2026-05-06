@@ -2,7 +2,7 @@ import { Component, ElementRef, ViewChild, signal, inject, OnInit } from '@angul
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService } from '../../core/services/chat.service';
-import { SavedQuery, QueryPlan, ClusterCondition } from '@org/models';
+import { SavedQuery, QueryPlan, ConditionValue, RelationFilter } from '@org/models';
 import { Textarea } from 'primeng/textarea';
 import { Button } from 'primeng/button';
 import { Badge } from 'primeng/badge';
@@ -85,7 +85,11 @@ export class ChatBotComponent implements OnInit {
       'name': 'שם',
       'date': 'תאריך',
       'supportedStoneTypes': 'חומרים נתמכים',
-      'minCount': 'כמות מינימלית של מקבצים'
+      'minCount': 'כמות מינימלית של מקבצים',
+      'clusters': 'מקבצים',
+      'mine': 'מכרה',
+      'drill': 'מקדח',
+      'missions': 'משימות'
     };
     return fieldMap[field] || field;
   }
@@ -99,7 +103,11 @@ export class ChatBotComponent implements OnInit {
       'after': 'אחרי',
       'before': 'לפני',
       'equals': 'שווה ל-',
-      'in': 'נמצא בתוך'
+      'in': 'נמצא בתוך',
+      'some': 'שיש לו לפחות אחד מ-',
+      'every': 'שכל ה-',
+      'none': 'שאין לו אף אחד מ-',
+      'is': 'שהוא'
     };
     return opMap[op] || op;
   }
@@ -135,8 +143,25 @@ export class ChatBotComponent implements OnInit {
     return String(key).startsWith('count');
   }
 
-  getClusterConditions(plan: QueryPlan): ClusterCondition[] {
-    if (!plan.clusterConditions) return [];
-    return Array.isArray(plan.clusterConditions) ? plan.clusterConditions : [plan.clusterConditions];
+  isRelation(value: any): boolean {
+    return value && (value.some || value.every || value.none || value.is || value.minCount);
+  }
+
+  getRelationValue(value: any): any {
+    const val = { ...(value.some || value.every || value.none || value.is || {}) };
+    if (value.minCount) val['minCount'] = value.minCount;
+    return val;
+  }
+
+  getRelationOp(value: any): string {
+    if (value.some) return 'some';
+    if (value.every) return 'every';
+    if (value.none) return 'none';
+    if (value.is) return 'is';
+    return 'some';
+  }
+
+  isMinCount(key: any): boolean {
+    return key === 'minCount';
   }
 }
