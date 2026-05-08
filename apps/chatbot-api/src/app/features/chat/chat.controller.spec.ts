@@ -15,6 +15,7 @@ describe('ChatController', () => {
             modelName: 'test-model',
             embeddingModel: 'test-embed',
             processChatStream: jest.fn(),
+            getHealth: jest.fn().mockResolvedValue({ database: 'online', llm: 'online' }),
           },
         },
       ],
@@ -28,10 +29,12 @@ describe('ChatController', () => {
   });
 
   describe('getConfig', () => {
-    it('should return chat config', () => {
-      expect(controller.getConfig()).toEqual({
+    it('should return chat config with health', async () => {
+      const config = await controller.getConfig();
+      expect(config).toEqual({
         modelName: 'test-model',
         embeddingModel: 'test-embed',
+        health: { database: 'online', llm: 'online' },
       });
     });
   });
