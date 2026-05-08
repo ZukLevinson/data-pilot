@@ -40,7 +40,39 @@ jobs:
 
       # Prepend any command with "nx record --" to record its logs to Nx Cloud
       - run: pnpm nx record -- echo Hello World
-      - run: pnpm nx run-many -t lint test build typecheck e2e
+      # Run shared targets across all projects
+      - run: pnpm nx run-many -t lint test build
+      # Run project-specific targets
+      - run: pnpm nx run portal:typecheck
+      - run: pnpm nx run chatbot-api-e2e:e2e
       # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/ci/features/self-healing-ci
       - run: pnpm nx fix-ci
         if: always()
+
+  deploy:
+    name: Deploy to Firebase Hosting
+    runs-on: ubuntu-latest
+    needs: main
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate --schema=apps/chatbot-api/prisma/schema.prisma
+      - run: pnpm nx build portal
+
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
