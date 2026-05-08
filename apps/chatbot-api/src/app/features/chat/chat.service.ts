@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ChatOpenAI } from '@langchain/openai';
-import { ChatStreamChunk, EntitySearchResult } from '@org/models';
+import { ChatStreamChunk, EntitySearchResult, QueryPlan } from '@org/models';
 import { ChatPlanner } from './chat.planner';
 import { ChatExecutor } from './chat.executor';
 
@@ -28,13 +28,13 @@ export class ChatService {
     });
   }
 
-  async *processChatStream(userId: string, question: string): AsyncGenerator<ChatStreamChunk> {
+  async *processChatStream(userId: string, question: string, contextQueryPlan?: QueryPlan): AsyncGenerator<ChatStreamChunk> {
     const isAddQuery = /add|keep|also|בנוסף|תתקדם|תשאיר|וכן|תצרף|תוסיף/i.test(question);
     const mode: 'replace' | 'append' = isAddQuery ? 'append' : 'replace';
 
     yield { status: 'מנתח את הדרישה המורכבת...' };
 
-    const queryPlan = await this.planner.generatePlan(this.llm, question);
+    const queryPlan = await this.planner.generatePlan(this.llm, question, contextQueryPlan);
     if (!queryPlan) {
       yield { content: 'לא הצלחתי ליצור תוכנית שאילתה עבור השאלה הזו.' };
       return;
@@ -119,6 +119,20 @@ Instructions:
     }
   }
 
+  async *executeDirectPlan(plan: QueryPlan): AsyncGenerator<ChatStreamChunk> {
+    yield { status: 'מריץ שאילתה מעודכנת...', queryPlan: plan };
+    try {
+      const executorStream = this.executor.executePlan(plan, 'Manually modified query');
+      for await (const chunk of executorStream) {
+        yield { sources: chunk, mode: 'append', queryPlan: plan };
+      }
+      yield { content: 'השאילתה בוצעה בהצלחה על סמך השינויים הידניים שלך.' };
+    } catch (e) {
+      this.logger.error('Direct execution failed', e);
+      yield { content: 'אירעה שגיאה בעת הרצת השאילתה המעודכנת.' };
+    }
+  }
+
   async getInitialData(): Promise<EntitySearchResult[]> {
     return this.executor.getInitialData();
   }
@@ -132,15 +146,20 @@ Instructions:
     
     let llmStatus: 'online' | 'offline' = 'offline';
     try {
-      // Use a very short request to check LLM connectivity
-      // We don't use 'invoke' to avoid wasting tokens, but rather a simple reachability test if possible
-      // Since it's a local LLM, we can just check the endpoint
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const baseURL = (this.llm as unknown as { configuration: { baseURL: string } }).configuration.baseURL;
-      const response = await fetch(`${baseURL}/models`, { method: 'GET', signal: AbortSignal.timeout(2000) });
-      if (response.ok) llmStatus = 'online';
-    } catch {
-      this.logger.warn('LLM health check failed');
+      
+      // Try /models (OpenAI style)
+      const response = await fetch(`${baseURL}/models`, { method: 'GET', signal: AbortSignal.timeout(3000) });
+      if (response.ok) {
+        llmStatus = 'online';
+      } else {
+        // Fallback for Ollama base endpoint
+        const baseRoot = baseURL.replace('/v1', '');
+        const ollamaRes = await fetch(baseRoot, { method: 'GET', signal: AbortSignal.timeout(2000) });
+        if (ollamaRes.ok) llmStatus = 'online';
+      }
+    } catch (e) {
+      this.logger.warn(`LLM health check failed: ${e.message}`);
       llmStatus = 'offline';
     }
 

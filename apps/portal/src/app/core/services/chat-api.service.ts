@@ -18,10 +18,18 @@ export class ChatApiService {
   }
 
   async *streamChat(request: ChatRequest): AsyncIterable<ChatStreamChunk> {
-    const response = await fetch('/api/chat/stream', {
+    yield* this.stream('/api/chat/stream', request);
+  }
+
+  async *executePlan(plan: any): AsyncIterable<ChatStreamChunk> {
+    yield* this.stream('/api/chat/execute', plan);
+  }
+
+  private async *stream(url: string, body: any): AsyncIterable<ChatStreamChunk> {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request)
+      body: JSON.stringify(body)
     });
 
     if (!response.ok) {

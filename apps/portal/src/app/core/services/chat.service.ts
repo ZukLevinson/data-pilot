@@ -21,6 +21,7 @@ export class ChatService {
   history = signal<SavedQuery[]>([]);
   isWaiting = signal<boolean>(false);
   showHistory = signal<boolean>(false);
+  editingPlan = signal<QueryPlan | null>(null);
   healthStatus = signal<{ database: 'online' | 'offline'; llm: 'online' | 'offline' }>({
     database: 'online',
     llm: 'online'
@@ -58,7 +59,11 @@ export class ChatService {
     }]);
 
     try {
-      const stream = this.api.streamChat({ userId: 'user-1', question: text });
+      const stream = this.api.streamChat({ 
+        userId: 'user-1', 
+        question: text, 
+        contextQueryPlan: this.currentQueryPlan() || undefined 
+      });
       let fullContent = '';
 
       for await (const chunk of stream) {
@@ -123,5 +128,72 @@ export class ChatService {
     this.currentSources.set([]);
     this.currentQueryPlan.set(null);
     this.statusText.set(null);
+  }
+
+  startManualQuery() {
+    const emptyPlan: QueryPlan = {
+      target: 'Mine',
+      conditions: {
+        AND: []
+      }
+    };
+    
+    this.currentQueryPlan.set(emptyPlan);
+    
+    this.messages.update(msgs => [...msgs, {
+      id: Date.now(),
+      text: 'בניית שאילתה ידנית התחילה. השתמש בלחצנים למטה כדי להוסיף תנאים.',
+      sender: 'bot',
+      timestamp: new Date(),
+      queryPlan: emptyPlan
+    }]);
+  }
+
+  async runPlan(plan: QueryPlan) {
+    if (this.isWaiting()) return;
+
+    this.isWaiting.set(true);
+    this.currentSources.set([]);
+    
+    const botMessageId = Date.now();
+    this.messages.update(msgs => [...msgs, {
+      id: botMessageId,
+      text: '',
+      sender: 'bot',
+      timestamp: new Date(),
+      status: 'מריץ שאילתה מעודכנת...'
+    }]);
+
+    try {
+      const stream = this.api.executePlan(plan);
+      let fullContent = '';
+
+      for await (const chunk of stream) {
+        if (chunk.status) {
+          this.statusText.set(chunk.status);
+          this.updateBotMessage(botMessageId, { status: chunk.status });
+        }
+
+        if (chunk.queryPlan) {
+          this.currentQueryPlan.set(chunk.queryPlan);
+          this.updateBotMessage(botMessageId, { queryPlan: chunk.queryPlan });
+        }
+
+        if (chunk.sources) {
+          this.currentSources.update(existing => [...existing, ...(chunk.sources || [])]);
+          this.updateBotMessage(botMessageId, { sources: this.currentSources() });
+        }
+
+        if (chunk.content) {
+          fullContent += chunk.content;
+          this.updateBotMessage(botMessageId, { text: fullContent });
+        }
+      }
+    } catch (error) {
+      console.error('Plan execution error:', error);
+      this.updateBotMessage(botMessageId, { text: 'אירעה שגיאה בהרצת השאילתה.', isError: true });
+    } finally {
+      this.isWaiting.set(false);
+    }
   }
 }

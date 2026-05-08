@@ -18,6 +18,10 @@ import { SavedQuery } from '@org/models';
 export class ChatHeaderComponent {
   public chatService = inject(ChatService);
 
+  createNewQuery() {
+    this.chatService.startManualQuery();
+  }
+
   selectHistory(item: SavedQuery) {
     this.chatService.sendMessage(item.name);
     this.chatService.showHistory.set(false);

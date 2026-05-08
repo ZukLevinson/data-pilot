@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post, Res } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { Response } from 'express';
-import { ChatRequest, AppConfig, ChatResponse } from '@org/models';
+import { ChatRequest, AppConfig, ChatResponse, QueryPlan } from '@org/models';
 
 @Controller('chat')
 export class ChatController {
@@ -33,7 +33,7 @@ export class ChatController {
       return { error: 'userId and question are required.' };
     }
     let fullReply = '';
-    for await (const chunk of this.chatService.processChatStream(body.userId, body.question)) {
+    for await (const chunk of this.chatService.processChatStream(body.userId, body.question, body.contextQueryPlan)) {
       if (chunk.content) {
         fullReply += chunk.content;
       }
@@ -56,11 +56,31 @@ export class ChatController {
     res.setHeader('Connection', 'keep-alive');
 
     try {
-      for await (const chunk of this.chatService.processChatStream(body.userId, body.question)) {
+      for await (const chunk of this.chatService.processChatStream(body.userId, body.question, body.contextQueryPlan)) {
         res.write(`data: ${JSON.stringify(chunk)}\n\n`);
       }
     } catch (error) {
       console.error('Streaming error:', error);
+    } finally {
+      res.end();
+    }
+  }
+
+  @Post('execute')
+  async executePlan(
+    @Body() plan: QueryPlan,
+    @Res() res: Response
+  ) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    try {
+      for await (const chunk of this.chatService.executeDirectPlan(plan)) {
+        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      }
+    } catch (error) {
+      console.error('Execution error:', error);
     } finally {
       res.end();
     }

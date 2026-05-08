@@ -6,17 +6,25 @@ import { QueryPlan } from '@org/models';
 export class ChatPlanner {
   private readonly logger = new Logger(ChatPlanner.name);
 
-  async generatePlan(llm: ChatOpenAI, question: string): Promise<QueryPlan | null> {
+  async generatePlan(
+    llm: ChatOpenAI,
+    question: string,
+    contextQueryPlan?: QueryPlan,
+  ): Promise<QueryPlan | null> {
     const target = await this.identifyTarget(llm, question);
     this.logger.log(`Identified target: ${target} for question: "${question}"`);
 
+    const contextPart = contextQueryPlan
+      ? `\nCURRENT QUERY PLAN (being modified): ${JSON.stringify(contextQueryPlan)}\n`
+      : '';
+
     const planPrompt = `You are an expert SQL Query Planner for a Rare Earth Mining database.
 Question: "${question}"
-Target Entity: ${target}
+Target Entity: ${target}${contextPart}
 
 Database Schema & Relations:
 - Mine: id, name, geom (location). Relations: [clusters (many), missions (many)]
-- Cluster: id, mineId, stoneType, quantity, geom (location). Relations: [mine (one), missions (many)]
+- Cluster: id, mineId, stone_type (name), quantity, geom (location). Relations: [mine (one), missions (many)]
 - Drill: id, name, supportedStoneTypes. Relations: [missions (many)]
 - DrillMission: id, drillId, mineId, clusterId, stoneType, date. Relations: [mine (one), drill (one), cluster (one)]
 
@@ -76,7 +84,9 @@ Instructions:
 13. Example (Complex Logic): "Mines in North with Neodymium or Lithium" -> { "target": "Mine", "conditions": { "AND": [ { "name": { "operator": "contains", "value": "North" } }, { "OR": [ { "clusters": { "query": { "target": "Cluster", "conditions": { "AND": [ { "stoneType": { "operator": "equals", "value": "Neodymium" } } ] } } } }, { "clusters": { "query": { "target": "Cluster", "conditions": { "AND": [ { "stoneType": { "operator": "equals", "value": "Lithium" } } ] } } } } ] } ] } }
 14. Example (Statistics): "Average quantity per mine" -> { "target": "Cluster", "aggregations": [{ "field": "quantity", "type": "avg" }], "groupBy": "mineId", "isStatsOnly": true }
 15. Example (Time Granularity): "Mines in May 2024" -> { "target": "Mine", "conditions": { "AND": [ { "createdAt": { "operator": "month", "value": "2024-05" } } ] } }
-16. Example (Chaining): "Mines with clusters that have missions" -> { "target": "Mine", "conditions": { "AND": [ { "clusters": { "query": { "target": "Cluster", "conditions": { "AND": [ { "missions": { "query": { "target": "DrillMission", "conditions": {} } } } ] } } } } ] } }`;
+16. Example (Chaining): "Mines with clusters that have missions" -> { "target": "Mine", "conditions": { "AND": [ { "clusters": { "query": { "target": "Cluster", "conditions": { "AND": [ { "missions": { "query": { "target": "DrillMission", "conditions": {} } } } ] } } } } ] } }
+17. **Modification Mode**: If a "CURRENT QUERY PLAN" is provided, the user's question might be a request to modify it (e.g., "add another condition...", "remove the filter on...", "change the date to..."). In this case, you should return a NEW plan that is based on the current one but with the requested changes applied.
+18. **Complexity**: Be prepared to handle dozens of conditions. Keep the logic clean and nested correctly according to the user's intent. If modifying, preserve as much of the existing structure as possible unless the user asks for a reset.`;
 
     const planRes = await llm.invoke(planPrompt);
     const match = planRes.content.toString().match(/\{[\s\S]*\}/);
@@ -94,7 +104,10 @@ Instructions:
     return null;
   }
 
-  private async identifyTarget(llm: ChatOpenAI, question: string): Promise<QueryPlan['target']> {
+  private async identifyTarget(
+    llm: ChatOpenAI,
+    question: string,
+  ): Promise<QueryPlan['target']> {
     const identificationPrompt = `Identify the primary subject entity requested in the user's question.
 Even if the question mentions other entities for filtering purposes, identify the main entity the user wants to SEE or LIST.
 
@@ -114,13 +127,15 @@ Respond with ONLY the entity name: Mine, Cluster, Drill, or DrillMission.`;
     try {
       const res = await llm.invoke(identificationPrompt);
       const content = res.content.toString().toLowerCase();
-      
+
       if (content.includes('drillmission')) return 'DrillMission';
       if (content.includes('drill')) return 'Drill';
       if (content.includes('cluster')) return 'Cluster';
       if (content.includes('mine')) return 'Mine';
     } catch (e) {
-      this.logger.warn(`Failed to identify target via LLM, falling back to Mine: ${e.message}`);
+      this.logger.warn(
+        `Failed to identify target via LLM, falling back to Mine: ${e.message}`,
+      );
     }
 
     return 'Mine';

@@ -79,3 +79,24 @@
     </div>
   </div>
 </div>
+
+<!-- Fullscreen Query Editor Dialog -->
+<p-dialog [visible]="!!chatService.editingPlan()" 
+          (visibleChange)="!$event && chatService.editingPlan.set(null)"
+          [modal]="true" 
+          [header]="'עורך שאילתות מתקדם'" 
+          [style]="{ width: '90vw', maxWidth: '1200px' }"
+          [contentStyle]="{ height: '70vh', overflow: 'auto' }"
+          [draggable]="false"
+          [resizable]="false"
+          appendTo="body">
+  @if (chatService.editingPlan(); as plan) {
+    <div class="dialog-editor-container">
+       <app-query-plan-viewer [plan]="plan" [isRoot]="true" [isExpanded]="true"></app-query-plan-viewer>
+    </div>
+  }
+  <ng-template pTemplate="footer">
+    <p-button label="סגור" icon="pi pi-times" [text]="true" (onClick)="chatService.editingPlan.set(null)"></p-button>
+    <p-button label="הרץ שאילתה" icon="pi pi-play" (onClick)="chatService.runPlan(chatService.editingPlan()!); chatService.editingPlan.set(null)"></p-button>
+  </ng-template>
+</p-dialog>

@@ -1,160 +1,181 @@
-<div class="query-plan-gui" [class.sub-plan]="!isRoot">
-  @if (isRoot) {
-    <div class="plan-summary-header">
-      <i class="pi pi-filter-fill"></i>
-      <span>מפרט חיפוש מובנה</span>
-    </div>
-  }
-  
-  <div class="plan-details-grid">
-    @if (isRoot) {
-      <div class="plan-item">
-        <span class="label">יעד חיפוש:</span>
-        <div class="value">
-          <p-chip [label]="getReadableTarget(plan.target)" icon="pi pi-tag" styleClass="target-chip"></p-chip>
-        </div>
+<div class="query-plan-slim" [class.root]="isRoot">
+  <!-- Slim Header -->
+  @if (isRoot && plan) {
+    <div class="slim-header">
+      <div class="target-info">
+        <i class="pi pi-database"></i>
+        <span>מטרה:</span>
+        <select [ngModel]="plan.target" (change)="onTargetChange($event)" class="target-select">
+          <option value="Mine">מכרה</option>
+          <option value="Cluster">מקבץ</option>
+          <option value="Drill">מקדח</option>
+          <option value="DrillMission">משימת קידוח</option>
+        </select>
+        @if (plan.limit) { <span class="limit-label"> (מגבלה: {{ plan.limit }})</span> }
       </div>
-
-      @if (plan.totalCount) {
-        <div class="plan-item">
-          <span class="label">נמצאו בבסיס הנתונים:</span>
-          <span class="value count">{{ plan.totalCount | number }}</span>
-        </div>
-      }
-
-      @if (plan.limit) {
-        <div class="plan-item">
-          <span class="label">מגבלת תוצאות:</span>
-          <span class="value">{{ plan.limit }}</span>
-        </div>
-      }
-    }
-
-    @if (plan.conditions && (plan.conditions | json) !== '{}') {
-      <div class="plan-item full">
-        @if (isRoot) {
-          <span class="label">לוגיקת סינון מפורשת:</span>
+      <div class="header-actions">
+        @if (!isExpanded) {
+          <p-button icon="pi pi-external-link" [rounded]="true" size="small" [text]="true" 
+                    (onClick)="chatService.editingPlan.set(plan)" pTooltip="פתח בעורך מלא"></p-button>
         }
-        
-        <div class="logic-hierarchy">
-          <!-- Root Logical Group is now explicit -->
-          @for (entry of $any(plan.conditions) | keyvalue; track $any(entry).key) {
-            @if (isLogicGroup($any(entry).key)) {
-              <div class="logic-group root-level">
-                <div class="logic-op-header" [class.or]="$any(entry).key === 'OR'">{{ getReadableLogicOp($any(entry).key) }}</div>
-                <div class="logic-children">
-                  @if ($any(entry).key === 'NOT') {
-                    <app-query-plan-viewer [plan]="{ target: plan.target, conditions: $any(entry).value }" [isRoot]="false"></app-query-plan-viewer>
-                  } @else {
-                    @for (subConditions of $any($any(entry).value); track $index) {
-                      @if ($index > 0) {
-                        <div class="logic-connector" [class.or]="$any(entry).key === 'OR'">
-                          <span>{{ $any(entry).key === 'OR' ? 'או' : 'וגם' }}</span>
-                        </div>
-                      }
-                      <div class="logic-recursive-wrapper">
-                        @if (hasLogicGroup(subConditions)) {
-                           <app-query-plan-viewer [plan]="{ target: plan.target, conditions: subConditions }" [isRoot]="false"></app-query-plan-viewer>
-                        } @else {
-                          <div class="leaf-condition">
-                            @for (fieldEntry of $any(subConditions) | keyvalue; track $any(fieldEntry).key) {
-                              <ng-container *ngTemplateOutlet="leafTemplate; context: { $implicit: fieldEntry }"></ng-container>
-                            }
-                          </div>
-                        }
-                      </div>
-                    }
-                  }
-                </div>
-              </div>
-            } @else {
-              <!-- Planner didn't wrap in AND/OR, or this is a single condition -->
-              <div class="leaf-condition">
-                <ng-container *ngTemplateOutlet="leafTemplate; context: { $implicit: entry }"></ng-container>
-              </div>
-            }
-          }
-        </div>
+        <p-button icon="pi pi-play" [rounded]="true" size="small" [text]="true" 
+                  (onClick)="executeQuery()" pTooltip="הרץ שאילתה"></p-button>
+      </div>
+    </div>
+
+    <!-- Summary Row -->
+    @if (plan.aggregations?.length || plan.groupBy) {
+      <div class="meta-row">
+        @for (agg of plan.aggregations; track $index) {
+          <div class="meta-pill agg">
+            <span class="m-type">{{ getReadableAggType(agg.type) }}</span>
+            <span class="m-field">{{ getReadableField(agg.field) }}</span>
+          </div>
+        }
+        @if (plan.groupBy && plan.groupBy.length > 0) {
+          <div class="meta-pill group">
+            <span class="m-label">קבץ לפי:</span>
+            <span class="m-val">{{ plan.groupBy.join(', ') }}</span>
+          </div>
+        }
       </div>
     }
+  }
 
-    <!-- Template for leaf conditions to avoid repetition -->
-    <ng-template #leafTemplate let-entry>
-      @if (isFieldFilter(entry.value)) {
-        <div class="logic-line">
-          <span class="logic-field">{{ getReadableField(entry.key) }}</span>
-          <span class="logic-op">{{ getReadableOperator(entry.value.operator) }}</span>
-          <span class="logic-val">{{ formatValue(entry.value.value) }}</span>
-        </div>
-      } @else if (isRelatedFilter(entry.value)) {
-        <div class="hierarchy-connector">
-          <i class="pi pi-angle-double-down"></i>
-          <span class="connector-label">
-            {{ getReadableField(entry.key) }}:
-            @if (entry.value.count) {
-              (בכמות {{ getReadableOperator(entry.value.count.operator) }} {{ entry.value.count.value }})
+  <!-- Logic Rows -->
+  <div class="rows-container">
+    @if (plan?.conditions && hasConditions(plan.conditions)) {
+      @for (entry of getEntries(plan.conditions); track entry.key) {
+        <div class="logic-row">
+          <div class="row-prefix">
+            @if (!isRoot || !$first) {
+              <span class="op-label clickable" [class.or]="entry.key === 'OR'" 
+                    tabindex="0" role="button"
+                    (click)="toggleLogicOp(plan.conditions, entry.key)"
+                    (keydown.enter)="toggleLogicOp(plan.conditions, entry.key)">
+                {{ entry.key === 'OR' ? 'או' : 'וגם' }}
+              </span>
+            } @else if (entry.key === 'OR') {
+               <span class="op-label clickable or" 
+                     tabindex="0" role="button"
+                     (click)="toggleLogicOp(plan.conditions, entry.key)"
+                     (keydown.enter)="toggleLogicOp(plan.conditions, entry.key)">או</span>
             }
-          </span>
-        </div>
-        <app-query-plan-viewer [plan]="entry.value.query" [isRoot]="false"></app-query-plan-viewer>
-      } @else if (isObject(entry.value)) {
-        <div class="logic-group nested">
-          <div class="logic-op-header small">{{ getReadableField(entry.key) }}</div>
-          <div class="logic-children">
-             <app-query-plan-viewer [plan]="{ target: plan.target, conditions: entry.value }" [isRoot]="false"></app-query-plan-viewer>
+          </div>
+          <div class="row-content">
+            @if (isWhereClause(entry.value)) {
+              <!-- Nested logic group -->
+              <div class="nested-group">
+                <app-query-plan-viewer [plan]="{ target: plan.target, conditions: entry.value }" 
+                                      [isRoot]="false"></app-query-plan-viewer>
+              </div>
+            } @else if (isArray(entry.value)) {
+              <!-- List of filters in this group -->
+                <div class="filter-group-rows">
+                  @for (filter of entry.value; track $index) {
+                    <div class="filter-line">
+                      <div class="filter-pill-wrapper">
+                        <ng-container *ngTemplateOutlet="leafTemplate; context: { filter: filter, parent: entry.value, index: $index }"></ng-container>
+                      </div>
+                      <div class="row-actions">
+                        <p-button icon="pi pi-trash" [text]="true" [rounded]="true" size="small" 
+                                  severity="danger" (onClick)="removeCondition(entry.value, $index)" pTooltip="הסר"></p-button>
+                      </div>
+                    </div>
+                  }
+                  <div class="group-actions">
+                    <p-button icon="pi pi-plus" [text]="true" [rounded]="true" size="small" 
+                              (onClick)="addCondition(entry.value)" label="הוסף תנאי"></p-button>
+                  </div>
+                </div>
+            }
           </div>
         </div>
-      } @else {
-        <div class="logic-line">
-          <span class="logic-field">{{ getReadableField(entry.key) }}</span>
-          <span class="logic-op">שווה ל-</span>
-          <span class="logic-val">{{ formatValue(entry.value) }}</span>
-        </div>
       }
-    </ng-template>
-
-    @if (isRoot && plan.aggregationResults && (plan.aggregationResults | json) !== '{}') {
-      <div class="plan-item full">
-        <span class="label">סיכום נתונים כללי:</span>
-        <div class="aggregation-results">
-          @for (agg of plan.aggregationResults | keyvalue; track agg.key) {
-            <div class="agg-result-card">
-              <i class="pi pi-chart-bar"></i>
-              <div class="agg-info">
-                <span class="agg-label">{{ getReadableAggType(agg.key) }}:</span>
-                <span class="agg-value">
-                  {{ agg.value | number }} 
-                  {{ isCountAgg(agg.key) ? 'יחידות' : 'ק״ג' }}
-                </span>
-              </div>
-            </div>
-          }
-        </div>
-      </div>
-    }
-
-    @if (isRoot && plan.groupedResults && plan.groupedResults.length > 0) {
-      <div class="plan-item full">
-        <span class="label">ניתוח נתונים לפי פילוח:</span>
-        <div class="grouped-results">
-          @for (group of plan.groupedResults; track group.group) {
-            <div class="group-result-card">
-              <div class="group-header">
-                <i class="pi pi-tags"></i>
-                <span>{{ group.group }}</span>
-              </div>
-              <div class="group-metrics">
-                @for (metric of group.results | keyvalue; track metric.key) {
-                  <div class="metric-row">
-                    <span class="m-label">{{ getReadableAggType(metric.key) }}:</span>
-                    <span class="m-val">{{ metric.value | number }}</span>
-                  </div>
-                }
-              </div>
-            </div>
-          }
-        </div>
-      </div>
+    } @else if (isRoot) {
+      <div class="filter-line empty-msg">ללא סינון מיוחד.</div>
     }
   </div>
+
+  <!-- Results Summary (Root Only) -->
+  @if (isRoot && hasResults(plan)) {
+    <div class="slim-results">
+      <div class="res-grid">
+        @if (plan.totalCount) {
+          <div class="res-item">
+            <span class="res-label">סה"כ:</span>
+            <span class="res-val">{{ plan.totalCount | number }}</span>
+          </div>
+        }
+        @for (aggRes of getEntries(plan.aggregationResults || {}); track aggRes.key) {
+          <div class="res-item">
+            <span class="res-label">{{ getReadableAggType(aggRes.key) }}:</span>
+            <span class="res-val">{{ aggRes.value | number }}</span>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- Leaf Template -->
+  <ng-template #leafTemplate let-filter="filter" let-parent="parent" let-index="index">
+    @if (isFieldFilter(filter)) {
+      <div class="condition-pill" [class.editing]="isEditing(parent, 'leaf', index)">
+        @if (isEditing(parent, 'leaf', index)) {
+          <p-select [options]="getAvailableFields(plan.target)" [ngModel]="getFieldKey(filter)" 
+                    (onChange)="updateFilterKey(parent, index, $event); stopEditing()" 
+                    styleClass="sentence-select" [appendTo]="'body'"></p-select>
+          
+          <p-select [options]="getAvailableOperators(getFieldKey(filter))" [(ngModel)]="filter[getFieldKey(filter)].operator" 
+                    (onChange)="notifyChange(); stopEditing()" 
+                    styleClass="sentence-select op" [appendTo]="'body'"></p-select>
+
+          <input [(ngModel)]="filter[getFieldKey(filter)].value" (blur)="notifyChange(); stopEditing()" class="pill-input val">
+        } @else {
+          <div class="pill-text" 
+               tabindex="0" role="button"
+               (click)="startEditing(parent, 'leaf', index)"
+               (keydown.enter)="startEditing(parent, 'leaf', index)">
+            <span class="p-field">{{ getReadableField(getFieldKey(filter)) }}</span>
+            <span class="p-op">{{ getReadableOperator(filter[getFieldKey(filter)].operator) }}</span>
+            <span class="p-val">{{ formatValue(filter[getFieldKey(filter)].value) }}</span>
+            <i class="pi pi-pencil edit-icon"></i>
+          </div>
+        }
+      </div>
+    } @else if (isRelatedFilter(filter)) {
+      <div class="related-row">
+        <i class="pi pi-link"></i>
+        <span class="rel-label">{{ getReadableField(getFieldKey(filter)) }}</span>
+        
+        <p-select [options]="relationTypeOptions" [(ngModel)]="filter[getFieldKey(filter)].relationType" 
+                  (onChange)="notifyChange()" styleClass="rel-type-select-slim" [appendTo]="'body'"></p-select>
+
+        <span class="rel-target">{{ getReadableTarget(filter[getFieldKey(filter)].query.target) }}</span>
+
+        <div class="rel-having-config">
+          @if (filter[getFieldKey(filter)].having; as hv) {
+             <div class="having-pill">
+               <span class="hv-label">סינון מצטבר:</span>
+               <p-select [options]="aggTypeOptions" [(ngModel)]="hv.type" (onChange)="notifyChange()" styleClass="hv-select type"></p-select>
+               
+               @if (hv.type !== 'count') {
+                 <p-select [options]="getAvailableFields(filter[getFieldKey(filter)].query.target)" [(ngModel)]="hv.field" (onChange)="notifyChange()" styleClass="hv-select field"></p-select>
+               }
+
+               <p-select [options]="countOpOptions" [(ngModel)]="hv.operator" (onChange)="notifyChange()" styleClass="hv-select op"></p-select>
+               <input type="number" [(ngModel)]="hv.value" (change)="notifyChange()" class="hv-input">
+               <p-button icon="pi pi-times" [text]="true" [rounded]="true" size="small" (onClick)="filter[getFieldKey(filter)].having = undefined; notifyChange()"></p-button>
+             </div>
+          } @else {
+             <p-button icon="pi pi-plus-circle" label="סינון מצטבר" [text]="true" size="small" (onClick)="filter[getFieldKey(filter)].having = { field: '*', type: 'count', operator: 'gt', value: 0 }; notifyChange()"></p-button>
+          }
+        </div>
+
+        <div class="rel-content">
+          <app-query-plan-viewer [plan]="filter[getFieldKey(filter)].query" [isRoot]="false"></app-query-plan-viewer>
+        </div>
+      </div>
+    }
+  </ng-template>
 </div>

@@ -30,6 +30,7 @@
     </div>
   </div>
   <div class="header-actions">
+    <p-button icon="pi pi-plus" [rounded]="true" [text]="true" (onClick)="createNewQuery()" pTooltip="שאילתה חדשה (ידני)"></p-button>
     <p-button icon="pi pi-history" [rounded]="true" [text]="true" (onClick)="chatService.showHistory.set(true); chatService.loadHistory()" pTooltip="Query Library"></p-button>
     <p-button icon="pi pi-refresh" [rounded]="true" [text]="true" (onClick)="chatService.clear()" pTooltip="נקה שיחה"></p-button>
   </div>

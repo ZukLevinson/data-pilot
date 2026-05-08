@@ -9,8 +9,11 @@ export interface FieldFilter {
 
 export interface RelatedQueryFilter {
   query: QueryPlan;
-  count?: {
-    operator: 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
+  relationType?: 'some' | 'every' | 'none' | 'is' | 'isNot';
+  having?: {
+    field: string; // '*' for count
+    type: 'count' | 'sum' | 'avg' | 'min' | 'max';
+    operator: 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | 'equals';
     value: number;
   };
 }
@@ -79,6 +82,7 @@ export interface ChatMessage {
 export interface ChatRequest {
   userId: string;
   question: string;
+  contextQueryPlan?: QueryPlan;
 }
 
 export interface ChatResponse {

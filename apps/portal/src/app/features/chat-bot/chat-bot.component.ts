@@ -10,6 +10,8 @@ import { MapWidgetComponent } from '../../shared/components/map-widget/map-widge
 import { ChatHeaderComponent } from './components/chat-header/chat-header';
 import { ChatMessageListComponent } from './components/chat-message-list/chat-message-list';
 import { ChatInputComponent } from './components/chat-input/chat-input';
+import { DialogModule } from 'primeng/dialog';
+import { QueryPlanViewerComponent } from './components/query-plan-viewer/query-plan-viewer';
 
 @Component({
   selector: 'app-chat-bot',
@@ -24,7 +26,9 @@ import { ChatInputComponent } from './components/chat-input/chat-input';
     MapWidgetComponent,
     ChatHeaderComponent,
     ChatMessageListComponent,
-    ChatInputComponent
+    ChatInputComponent,
+    DialogModule,
+    QueryPlanViewerComponent
   ],
   providers: [DecimalPipe],
   templateUrl: './chat-bot.component.html',

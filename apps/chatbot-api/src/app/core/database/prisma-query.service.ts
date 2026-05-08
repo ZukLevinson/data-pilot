@@ -74,10 +74,11 @@ export class PrismaQueryService {
         prismaWhere[key] = this.mapFieldFilter(value);
       } else if (this.isRelatedQueryFilter(value)) {
         // Relation filter
-        if (value.count) {
-           prismaWhere['id'] = await this.handleRelatedQueryWithCount(key, value, target, prismaWhere['id']);
+        if (value.having) {
+           prismaWhere['id'] = await this.handleRelatedQueryWithHaving(key, value, target, prismaWhere['id']);
         } else {
-           prismaWhere[key] = { some: await this.buildWhere(value.query.conditions, value.query.target) };
+           const type = value.relationType || 'some';
+           prismaWhere[key] = { [type]: await this.buildWhere(value.query.conditions, value.query.target) };
         }
       } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
         // Nested object (like relational 'is', 'some', 'every', 'none')
@@ -171,29 +172,37 @@ export class PrismaQueryService {
     return val;
   }
 
-  private async handleRelatedQueryWithCount(relation: string, filter: RelatedQueryFilter, parentTarget: string, existingIdFilter: unknown): Promise<unknown> {
-    const { query, count } = filter;
-    const subWhere = await this.buildWhere(query.conditions, query.target);
+  private async handleRelatedQueryWithHaving(relation: string, filter: RelatedQueryFilter, parentTarget: string, existingIdFilter: unknown): Promise<unknown> {
+    const { query, having } = filter;
+    if (!having) return existingIdFilter;
 
-    // Find IDs that match the count condition
+    const subWhere = await this.buildWhere(query.conditions, query.target);
     const relatedModel = (query.target.charAt(0).toLowerCase() + query.target.slice(1)) as keyof PrismaService;
-    
-    // Convention: Foreign key is parentTarget (lowercased) + 'Id'
     const foreignKey = `${parentTarget.toLowerCase()}Id`; 
     
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const modelDelegate = (this.prisma as unknown as Record<string, { groupBy: (args: unknown) => Promise<Record<string, unknown>[]> }>)[relatedModel as string];
       
+      const aggType = `_${having.type}`;
+      const fieldKey = having.field === '*' ? foreignKey : having.field;
+      const operator = having.operator === 'eq' ? 'equals' : having.operator;
+
       const groups = await modelDelegate.groupBy({
         by: [foreignKey],
         where: subWhere,
-        _count: { [foreignKey]: true },
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        having: { [foreignKey]: { _count: { [count!.operator]: count!.value } } }
+        [aggType]: { [fieldKey]: true },
+        having: { 
+          [foreignKey]: having.type === 'count' 
+            ? { _count: { [operator]: having.value } }
+            : undefined,
+          [having.field]: having.type !== 'count' 
+            ? { [aggType]: { [operator]: having.value } }
+            : undefined
+        }
       }) as Record<string, unknown>[];
 
-      const matchingIds = groups.map((g) => g[foreignKey]);
+      const matchingIds = groups.map((g) => g[foreignKey]).filter(Boolean);
       
       if (existingIdFilter) {
         return { AND: [existingIdFilter, { in: matchingIds }] };
@@ -201,7 +210,7 @@ export class PrismaQueryService {
         return { in: matchingIds };
       }
     } catch (e: unknown) {
-      this.logger.error(`Failed to execute grouped relation filter for ${relation}: ${e instanceof Error ? e.message : String(e)}`);
+      this.logger.error(`Failed to execute HAVING relation filter for ${relation}: ${e instanceof Error ? e.message : String(e)}`);
       return existingIdFilter;
     }
   }
