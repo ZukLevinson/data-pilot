@@ -28,6 +28,7 @@
     "@types/wellknown": "^0.5.8",
     "axios": "^1.6.0",
     "express": "^4.21.2",
+    "firebase": "^12.13.0",
     "leaflet": "^1.9.4",
     "marked": "^18.0.3",
     "pg": "^8.20.0",
