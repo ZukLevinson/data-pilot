@@ -126,4 +126,27 @@ Instructions:
   async getHistory() {
     return this.executor.getHistory();
   }
+
+  async getHealth(): Promise<{ database: 'online' | 'offline'; llm: 'online' | 'offline' }> {
+    const dbStatus = await this.executor.checkDbHealth();
+    
+    let llmStatus: 'online' | 'offline' = 'offline';
+    try {
+      // Use a very short request to check LLM connectivity
+      // We don't use 'invoke' to avoid wasting tokens, but rather a simple reachability test if possible
+      // Since it's a local LLM, we can just check the endpoint
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const baseURL = (this.llm as unknown as { configuration: { baseURL: string } }).configuration.baseURL;
+      const response = await fetch(`${baseURL}/models`, { method: 'GET', signal: AbortSignal.timeout(2000) });
+      if (response.ok) llmStatus = 'online';
+    } catch {
+      this.logger.warn('LLM health check failed');
+      llmStatus = 'offline';
+    }
+
+    return {
+      database: dbStatus ? 'online' : 'offline',
+      llm: llmStatus
+    };
+  }
 }

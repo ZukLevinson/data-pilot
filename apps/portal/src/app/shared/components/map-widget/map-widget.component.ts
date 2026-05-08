@@ -3,7 +3,7 @@ import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { EntitySearchResult } from '@org/models';
 import { parse } from 'wellknown';
 
-import { Map, GeoJSON, LatLngExpression } from 'leaflet';
+import { Map, GeoJSON, Layer, Marker } from 'leaflet';
 
 @Component({
   selector: 'app-map-widget',
@@ -68,14 +68,15 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
   public zoomToEntity(id: string) {
     if (!this.map || !this.geoJsonLayer) return;
     
-    const layers = (this.geoJsonLayer as any).getLayers();
-    const targetLayer = layers.find((l: any) => l.feature?.properties?.id === id);
+    const layers = this.geoJsonLayer.getLayers();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const targetLayer = layers.find((l: Layer) => ((l as any).feature as GeoJSON.Feature)?.properties?.['id'] === id);
     
     if (targetLayer) {
-      if (targetLayer.getBounds) {
-        this.map.fitBounds(targetLayer.getBounds(), { padding: [50, 50], maxZoom: 15 });
-      } else if (targetLayer.getLatLng) {
-        this.map.setView(targetLayer.getLatLng(), 15);
+      if ((targetLayer as GeoJSON).getBounds) {
+        this.map.fitBounds((targetLayer as GeoJSON).getBounds(), { padding: [50, 50], maxZoom: 15 });
+      } else if ((targetLayer as Marker).getLatLng) {
+        this.map.setView((targetLayer as Marker).getLatLng(), 15);
       }
       targetLayer.openPopup();
     }
@@ -92,7 +93,7 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
       this.map.removeLayer(this.geoJsonLayer);
     }
 
-    const geoJsonFeatures: any[] = [];
+    const geoJsonFeatures: GeoJSON.Feature[] = [];
 
     this.sources.forEach(source => {
       if (source.wkt) {
@@ -108,7 +109,8 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
                 color: source.color,
                 content: source.content
               },
-              geometry: geoJson
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              geometry: geoJson as any
             });
           }
         } catch (e) {
@@ -118,20 +120,21 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
     });
 
     if (geoJsonFeatures.length > 0) {
-      this.geoJsonLayer = L.geoJSON(geoJsonFeatures, {
-        onEachFeature: (feature: any, layer: any) => {
-          const props = feature.properties;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.geoJsonLayer = L.geoJSON(geoJsonFeatures as any, {
+        onEachFeature: (feature: GeoJSON.Feature, layer: Layer) => {
+          const props = feature.properties || {};
           layer.bindPopup(`
             <div style="font-family: 'Open Sans', sans-serif;">
-              <strong style="color: #1e293b; font-size: 14px;">${props.name}</strong>
-              <div style="font-size: 11px; color: #64748b; margin-top: 4px;">${props.type}</div>
-              <p style="font-size: 12px; margin-top: 8px; color: #334155;">${props.content}</p>
+              <strong style="color: #1e293b; font-size: 14px;">${props['name']}</strong>
+              <div style="font-size: 11px; color: #64748b; margin-top: 4px;">${props['type']}</div>
+              <p style="font-size: 12px; margin-top: 8px; color: #334155;">${props['content']}</p>
             </div>
           `);
         },
-        style: (feature: any) => {
-          const properties = feature.properties;
-          const type = properties.type;
+        style: (feature?: GeoJSON.Feature) => {
+          const properties = feature?.properties || {};
+          const type = properties['type'];
           if (type === 'Mine') {
             return {
               color: '#1e3a8a',
@@ -151,30 +154,32 @@ export class MapWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
             };
           }
           return {
-            color: properties.color || '#3b82f6',
+            color: (properties['color'] as string) || '#3b82f6',
             weight: 2,
             opacity: 0.8,
-            fillColor: properties.color || '#3b82f6',
+            fillColor: (properties['color'] as string) || '#3b82f6',
             fillOpacity: 0.2,
           };
         },
-        pointToLayer: (feature: any, latlng: any) => {
-          const properties = feature.properties;
-          const type = properties.type;
+        pointToLayer: (feature: GeoJSON.Feature, latlng: unknown) => {
+          const properties = feature.properties || {};
+          const type = properties['type'];
           
           if (type === 'Cluster') {
             const icon = L.divIcon({
               className: 'cluster-icon',
-              html: `<div style="background-color: ${properties.color || '#f59e0b'}; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.3);"><i class="pi pi-database" style="font-size: 10px;"></i></div>`,
+              html: `<div style="background-color: ${properties['color'] || '#f59e0b'}; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.3);"><i class="pi pi-database" style="font-size: 10px;"></i></div>`,
               iconSize: [20, 20],
               iconAnchor: [10, 10]
             });
-            return L.marker(latlng, { icon });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return L.marker(latlng as any, { icon });
           }
 
-          return L.circleMarker(latlng, {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return L.circleMarker(latlng as any, {
             radius: 6,
-            fillColor: properties.color || '#3b82f6',
+            fillColor: (properties['color'] as string) || '#3b82f6',
             color: '#fff',
             weight: 2,
             opacity: 1,

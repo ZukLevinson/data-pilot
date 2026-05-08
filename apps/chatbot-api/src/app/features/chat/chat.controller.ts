@@ -8,10 +8,12 @@ export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
   @Get('config')
-  getConfig(): AppConfig {
+  async getConfig(): Promise<AppConfig> {
+    const health = await this.chatService.getHealth();
     return {
       modelName: this.chatService.modelName,
       embeddingModel: this.chatService.embeddingModel,
+      health
     };
   }
 

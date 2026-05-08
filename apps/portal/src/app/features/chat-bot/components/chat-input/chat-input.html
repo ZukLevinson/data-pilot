@@ -1,0 +1,26 @@
+<div class="chat-input-area">
+  <form (ngSubmit)="sendMessage()" class="input-form">
+    <textarea 
+      #messageInput
+      pTextarea
+      [autoResize]="true"
+      rows="1"
+      [ngModel]="inputText()" 
+      (ngModelChange)="inputText.set($event)" 
+      (keydown)="handleKeyPress($event)"
+      name="messageInput"
+      placeholder="שאל שאלה או הזן פקודת GIS..." 
+      autocomplete="off"
+      class="message-input"
+      [disabled]="chatService.isWaiting()"
+    ></textarea>
+    <p-button 
+      type="submit" 
+      icon="pi pi-send" 
+      size="large"
+      [disabled]="!inputText().trim() || chatService.isWaiting()" 
+      [rounded]="true" 
+      styleClass="send-button"
+    ></p-button>
+  </form>
+</div>

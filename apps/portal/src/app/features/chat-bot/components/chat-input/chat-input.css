@@ -1,0 +1,60 @@
+.chat-input-area {
+  padding: 1.5rem;
+  background: white;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: center;
+}
+
+.input-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #ffffff;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+  max-width: 400px;
+}
+
+.input-form:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+  background: #ffffff;
+}
+
+.message-input {
+  flex: 1;
+  border: none !important;
+  background: transparent !important;
+  padding: 0.6rem 0.75rem !important;
+  font-size: 0.9375rem !important;
+  color: #1e293b !important;
+  resize: none;
+  max-height: 120px;
+  box-shadow: none !important;
+  outline: none !important;
+  appearance: none;
+}
+
+:host ::ng-deep .send-button {
+  color: #2563eb !important;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+:host ::ng-deep .send-button .p-button-icon {
+  color: #2563eb !important;
+}
+
+:host ::ng-deep .send-button:hover:not(:disabled) {
+  background: none !important;
+  color: #1d4ed8 !important;
+}
+
+:host ::ng-deep .send-button:hover:not(:disabled) .p-button-icon {
+  color: #1d4ed8 !important;
+}

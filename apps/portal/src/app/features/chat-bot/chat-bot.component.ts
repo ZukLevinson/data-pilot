@@ -1,133 +1,54 @@
-import { Component, ElementRef, ViewChild, signal, inject, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { Component, ViewChild, inject, OnInit } from '@angular/core';
+import { CommonModule, DecimalPipe } from '@angular/common';
 import { ChatService } from '../../core/services/chat.service';
-import { SavedQuery, QueryPlan, ConditionValue, RelationFilter } from '@org/models';
-import { Textarea } from 'primeng/textarea';
-import { Button } from 'primeng/button';
-import { Badge } from 'primeng/badge';
-import { Avatar } from 'primeng/avatar';
-import { Chip } from 'primeng/chip';
-import { Drawer } from 'primeng/drawer';
-import { ScrollPanel } from 'primeng/scrollpanel';
-import { MapWidgetComponent } from '../../shared/components/map-widget/map-widget.component';
-import { MarkdownPipe } from '../../shared/pipes/markdown.pipe';
-
-import { TableModule } from 'primeng/table';
-import { InputTextModule } from 'primeng/inputtext';
+import { BadgeModule } from 'primeng/badge';
 import { TagModule } from 'primeng/tag';
+import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
-import { DatePipe } from '@angular/common';
+import { TableModule } from 'primeng/table';
+import { MapWidgetComponent } from '../../shared/components/map-widget/map-widget.component';
+import { ChatHeaderComponent } from './components/chat-header/chat-header';
+import { ChatMessageListComponent } from './components/chat-message-list/chat-message-list';
+import { ChatInputComponent } from './components/chat-input/chat-input';
 
 @Component({
   selector: 'app-chat-bot',
   standalone: true,
-  imports: [CommonModule, FormsModule, Textarea, Button, Badge, Avatar, Chip, Drawer, ScrollPanel, MapWidgetComponent, MarkdownPipe, TableModule, InputTextModule, TagModule, TooltipModule],
-  providers: [DatePipe],
+  imports: [
+    CommonModule, 
+    BadgeModule, 
+    TagModule, 
+    ButtonModule, 
+    TooltipModule, 
+    TableModule, 
+    MapWidgetComponent,
+    ChatHeaderComponent,
+    ChatMessageListComponent,
+    ChatInputComponent
+  ],
+  providers: [DecimalPipe],
   templateUrl: './chat-bot.component.html',
   styleUrls: ['./chat-bot.component.css']
 })
 export class ChatBotComponent implements OnInit {
   public chatService = inject(ChatService);
-  private datePipe = inject(DatePipe);
   
-  @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
-  @ViewChild('messageInput') private messageInput!: ElementRef;
   @ViewChild(MapWidgetComponent) private mapWidget!: MapWidgetComponent;
 
-  inputText = signal<string>('');
-
-  constructor() {
-    this.chatService.loadHistory();
-  }
-
   async ngOnInit() {
-    this.chatService.getConfig().subscribe(config => this.chatService.currentModel.set(config.modelName));
-  }
-
-  handleKeyPress(event: KeyboardEvent) {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      this.sendMessage();
-    }
-  }
-
-  async sendMessage() {
-    const text = this.inputText().trim();
-    if (!text || this.chatService.isWaiting()) return;
-
-    this.inputText.set('');
-    this.scrollToBottom();
-
-    await this.chatService.sendMessage(text);
-    
-    this.scrollToBottom();
-    this.focusInput();
+    this.chatService.getConfig().subscribe(config => {
+      this.chatService.currentModel.set(config.modelName);
+      if (config.health) {
+        this.chatService.healthStatus.set(config.health);
+      }
+    });
+    this.chatService.loadHistory();
   }
 
   zoomTo(id: string) {
     if (this.mapWidget) {
       this.mapWidget.zoomToEntity(id);
     }
-  }
-
-  selectHistory(item: SavedQuery) {
-    this.inputText.set(item.name);
-    this.sendMessage();
-  }
-
-  private scrollToBottom() {
-    setTimeout(() => {
-      if (this.scrollContainer) {
-        const element = this.scrollContainer.nativeElement;
-        element.scrollTop = element.scrollHeight;
-      }
-    }, 50);
-  }
-
-  focusInput() {
-    setTimeout(() => {
-      if (this.messageInput) {
-        this.messageInput.nativeElement.focus();
-      }
-    }, 100);
-  }
-
-  getReadableField(field: string): string {
-    const fieldMap: Record<string, string> = {
-      'stoneType': 'סוג חומר',
-      'quantity': 'כמות',
-      'name': 'שם',
-      'date': 'תאריך',
-      'supportedStoneTypes': 'חומרים נתמכים',
-      'minCount': 'כמות מינימלית של מקבצים',
-      'clusters': 'מקבצים',
-      'mine': 'מכרה',
-      'drill': 'מקדח',
-      'missions': 'משימות'
-    };
-    return fieldMap[field] || field;
-  }
-
-  getReadableOperator(op: string): string {
-    const opMap: Record<string, string> = {
-      'contains': 'מכיל',
-      'notContains': 'לא מכיל',
-      'gt': 'גדול מ-',
-      'lt': 'קטן מ-',
-      'after': 'אחרי',
-      'before': 'לפני',
-      'equals': 'שווה ל-',
-      'year': 'בשנה',
-      'month': 'בחודש',
-      'day': 'ביום',
-      'in': 'נמצא בתוך',
-      'some': 'שיש לו לפחות אחד מ-',
-      'every': 'שכל ה-',
-      'none': 'שאין לו אף אחד מ-',
-      'is': 'שהוא'
-    };
-    return opMap[op] || op;
   }
 
   getReadableTarget(target: string): string {
@@ -138,58 +59,5 @@ export class ChatBotComponent implements OnInit {
       'DrillMission': 'משימת קידוח'
     };
     return targetMap[target] || target;
-  }
-
-  getReadableAggType(key: string): string {
-    const parts = key.split('_');
-    const type = parts[0];
-    const field = parts[1];
-    
-    const typeMap: Record<string, string> = {
-      'sum': 'סה״כ',
-      'avg': 'ממוצע',
-      'min': 'מינימום',
-      'max': 'מקסימום',
-      'count': 'ספירה'
-    };
-    
-    const fieldLabel = this.getReadableField(field);
-    return `${typeMap[type] || type} ${fieldLabel}`;
-  }
-
-  isCountAgg(key: string): boolean {
-    return String(key).startsWith('count');
-  }
-
-  isRelation(value: any): boolean {
-    return value && (value.some || value.every || value.none || value.is || value.minCount);
-  }
-
-  getRelationValue(value: any): any {
-    const val = { ...(value.some || value.every || value.none || value.is || {}) };
-    if (value.minCount) val['minCount'] = value.minCount;
-    return val;
-  }
-
-  getRelationOp(value: any): string {
-    if (value.some) return 'some';
-    if (value.every) return 'every';
-    if (value.none) return 'none';
-    if (value.is) return 'is';
-    return 'some';
-  }
-
-  isMinCount(key: any): boolean {
-    return key === 'minCount';
-  }
-
-  formatValue(value: any): string {
-    if (typeof value === 'string' && value.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(value)) {
-      const date = new Date(value);
-      if (!isNaN(date.getTime())) {
-        return this.datePipe.transform(date, 'dd/MM/yyyy') || value;
-      }
-    }
-    return value;
   }
 }

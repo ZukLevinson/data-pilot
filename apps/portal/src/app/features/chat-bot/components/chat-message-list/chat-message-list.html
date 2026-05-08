@@ -1,0 +1,60 @@
+<div class="chat-messages" #scrollContainer>
+  @for (message of chatService.messages(); track message.id) {
+    <div class="message-wrapper" [class.user]="message.sender === 'user'">
+      <div class="message-bubble" [class.error]="message.isError">
+        <!-- Thinking Section -->
+        @if (message.thought) {
+          <div class="thought-process">
+            <div class="thought-header">
+              <i class="pi pi-sparkles"></i>
+              <span>Reasoning...</span>
+            </div>
+            <div class="thought-text">{{ message.thought }}</div>
+          </div>
+        }
+        
+        <!-- Query Plan GUI -->
+        @if (message.queryPlan) {
+          <app-query-plan-viewer [plan]="message.queryPlan"></app-query-plan-viewer>
+        }
+
+        <!-- Actual Answer -->
+        @if (message.text) {
+          @if (message.sender === 'bot') {
+            <div class="answer-text markdown-body" [innerHTML]="message.text | markdown"></div>
+          } @else {
+            <div class="answer-text">{{ message.text }}</div>
+          }
+        }
+        
+        <!-- Status / Thinking / Typing -->
+        @if (!message.text && chatService.isWaiting()) {
+          <div class="typing-container">
+            @if (message.thought) {
+              <!-- Live thinking stream -->
+              <div class="thinking-live">
+                <div class="thinking-header">
+                  <i class="pi pi-spin pi-cog"></i>
+                  <span>חושב...</span>
+                </div>
+                <div class="thinking-text">{{ message.thought }}</div>
+              </div>
+            } @else if (chatService.statusText()) {
+              <div class="status-indicator">
+                <i class="pi pi-spin pi-spinner"></i>
+                <span>{{ chatService.statusText() }}</span>
+              </div>
+            } @else {
+              <div class="typing-indicator">
+                <span></span><span></span><span></span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+      <div class="message-time">
+        {{ message.timestamp | date:'HH:mm' }}
+      </div>
+    </div>
+  }
+</div>

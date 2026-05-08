@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../core/database/prisma.service';
+import { PrismaQueryService } from '../../core/database/prisma-query.service';
 import { EntitySearchResult, QueryPlan } from '@org/models';
 import { Prisma } from '@prisma/client';
 
@@ -7,131 +8,21 @@ import { Prisma } from '@prisma/client';
 export class ChatExecutor {
   private readonly logger = new Logger(ChatExecutor.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private queryService: PrismaQueryService) {}
 
   async *executePlan(queryPlan: QueryPlan, question: string): AsyncGenerator<EntitySearchResult[]> {
-    const resultLimit = queryPlan.limit || 5000;
-    const where = this.mapConditionsToPrisma(queryPlan.conditions || {});
+    // Use the generic PrismaQueryService
+    const { results: rawResults = [], count: totalCount = 0, aggregationResults, groupedResults } = 
+      await this.queryService.executeQuery(queryPlan);
+    
+    queryPlan.totalCount = totalCount;
+    queryPlan.aggregationResults = aggregationResults;
+    queryPlan.groupedResults = groupedResults;
+    queryPlan.generatedSql = `Generic Prisma Query on ${queryPlan.target}`;
 
-    // Handle minCount constraints (e.g., "Mines with at least 10 Neodymium clusters")
-    if (queryPlan.conditions) {
-      for (const [relation, filterVal] of Object.entries(queryPlan.conditions)) {
-        const filter = filterVal as any;
-        if (typeof filter === 'object' && filter?.minCount) {
-          if (relation === 'clusters' && queryPlan.target === 'Mine') {
-            const subWhere = this.mapConditionsToPrisma(filter.some || {});
-            const groups = await (this.prisma.cluster as any).groupBy({
-              by: ['mineId'],
-              where: subWhere,
-              _count: { mineId: true },
-              having: { mineId: { _count: { gte: filter.minCount } } }
-            });
-            const matchingIds = groups.map((g: any) => g.mineId);
-            where.id = where.id ? { AND: [where.id, { in: matchingIds }] } : { in: matchingIds };
-          } else if (relation === 'missions' && queryPlan.target === 'Mine') {
-            const subWhere = this.mapConditionsToPrisma(filter.some || {});
-            const groups = await (this.prisma.drillMission as any).groupBy({
-              by: ['mineId'],
-              where: subWhere,
-              _count: { mineId: true },
-              having: { mineId: { _count: { gte: filter.minCount } } }
-            });
-            const matchingIds = groups.map((g: any) => g.mineId);
-            where.id = where.id ? { AND: [where.id, { in: matchingIds }] } : { in: matchingIds };
-          }
-        }
-      }
-    }
-
-    let rawResults: any[] = [];
-    let totalCount = 0;
-
-    if (!queryPlan.isStatsOnly) {
-      const orderBy = (queryPlan.orderBy && !queryPlan.orderBy.type) ? { [queryPlan.orderBy.field]: queryPlan.orderBy.direction } : undefined;
-
-      if (queryPlan.target === 'Mine') {
-        rawResults = await this.prisma.mine.findMany({ where, take: resultLimit, orderBy });
-        totalCount = await this.prisma.mine.count({ where });
-        queryPlan.generatedSql = `SELECT count(*) FROM "Mine" (Complex Filter)`;
-      } else if (queryPlan.target === 'Cluster') {
-        rawResults = await this.prisma.cluster.findMany({ where, include: { mine: true }, take: resultLimit, orderBy });
-        totalCount = await this.prisma.cluster.count({ where });
-        queryPlan.generatedSql = `SELECT count(*) FROM "Cluster" (Complex Filter)`;
-      } else if (queryPlan.target === 'DrillMission') {
-        rawResults = await this.prisma.drillMission.findMany({ where, include: { mine: true, drill: true }, take: resultLimit, orderBy });
-        totalCount = await this.prisma.drillMission.count({ where });
-        queryPlan.generatedSql = `SELECT count(*) FROM "DrillMission" (Complex Filter)`;
-      }
-      queryPlan.totalCount = totalCount;
-    }
-
-    // Handle Aggregations (Global or Grouped)
-    if (queryPlan.aggregations?.length) {
-      const entity = queryPlan.target === 'Cluster' ? 'cluster' : (queryPlan.target === 'Mine' ? 'mine' : 'drillMission');
-      // Special case: if target is Mine but we want cluster quantity stats
-      const aggTable = (queryPlan.target === 'Mine' && queryPlan.aggregations.some(a => a.field === 'quantity')) ? 'cluster' : entity;
-      
-      const _sum = Object.fromEntries(queryPlan.aggregations.filter(a => a.type === 'sum').map(a => [a.field, true]));
-      const _avg = Object.fromEntries(queryPlan.aggregations.filter(a => a.type === 'avg').map(a => [a.field, true]));
-      const _min = Object.fromEntries(queryPlan.aggregations.filter(a => a.type === 'min').map(a => [a.field, true]));
-      const _max = Object.fromEntries(queryPlan.aggregations.filter(a => a.type === 'max').map(a => [a.field, true]));
-      const _count = Object.fromEntries(queryPlan.aggregations.filter(a => a.type === 'count').map(a => [a.field === '*' ? '_all' : a.field, true]));
-
-      const aggWhere = (aggTable === 'cluster' && queryPlan.target === 'Mine') ? { mine: where } : where;
-
-      if (queryPlan.groupBy) {
-        const orderByField = queryPlan.orderBy?.field === '*' ? '_all' : queryPlan.orderBy?.field;
-        const orderBy = queryPlan.orderBy ? 
-          (queryPlan.orderBy.type ? 
-            { [`_${queryPlan.orderBy.type}`]: { [orderByField!]: queryPlan.orderBy.direction } } : 
-            (queryPlan.groupBy === queryPlan.orderBy.field ? { [queryPlan.orderBy.field]: queryPlan.orderBy.direction } : undefined)
-          ) : undefined;
-
-        const groupedArgs: any = {
-          where: aggWhere,
-          by: [queryPlan.groupBy],
-          orderBy,
-          take: queryPlan.limit || undefined,
-        };
-        if (Object.keys(_sum).length) groupedArgs._sum = _sum;
-        if (Object.keys(_avg).length) groupedArgs._avg = _avg;
-        if (Object.keys(_min).length) groupedArgs._min = _min;
-        if (Object.keys(_max).length) groupedArgs._max = _max;
-        if (Object.keys(_count).length) groupedArgs._count = _count;
-
-        const grouped = await (this.prisma[aggTable] as any).groupBy(groupedArgs);
-
-        queryPlan.groupedResults = grouped.map((row: any) => {
-          const results: Record<string, number> = {};
-          for (const agg of queryPlan.aggregations!) {
-            const typeKey = `_${agg.type}`;
-            const fieldKey = agg.field === '*' ? '_all' : agg.field;
-            results[`${agg.type}_${agg.field}`] = row[typeKey]?.[fieldKey] || 0;
-          }
-          return { group: String(row[queryPlan.groupBy!]), results };
-        });
-      } else {
-        const aggs = await (this.prisma[aggTable] as any).aggregate({
-          where: aggWhere,
-          _sum: Object.keys(_sum).length ? _sum : undefined,
-          _avg: Object.keys(_avg).length ? _avg : undefined,
-          _min: Object.keys(_min).length ? _min : undefined,
-          _max: Object.keys(_max).length ? _max : undefined,
-          _count: Object.keys(_count).length ? _count : undefined,
-        });
-
-        queryPlan.aggregationResults = {};
-        for (const agg of queryPlan.aggregations) {
-          const typeKey = `_${agg.type}`;
-          const fieldKey = agg.field === '*' ? '_all' : agg.field;
-          queryPlan.aggregationResults[`${agg.type}_${agg.field}`] = (aggs as any)[typeKey]?.[fieldKey] || 0;
-        }
-      }
-    }
-
-    // Resolve IDs to names for Grouped Results
+    // Resolve IDs to names for Grouped Results (UI Friendly)
     if (queryPlan.groupedResults && queryPlan.groupedResults.length > 0) {
-      if (queryPlan.groupBy === 'mineId') {
+      if (queryPlan.groupBy && queryPlan.groupBy.includes('mineId')) {
         const mineIds = queryPlan.groupedResults.map(r => r.group);
         const mines = await this.prisma.mine.findMany({
           where: { id: { in: mineIds } },
@@ -141,7 +32,7 @@ export class ChatExecutor {
           const m = mines.find(m => m.id === String(r.group));
           if (m) r.group = m.name;
         });
-      } else if (queryPlan.groupBy === 'drillId') {
+      } else if (queryPlan.groupBy && queryPlan.groupBy.includes('drillId')) {
         const drillIds = queryPlan.groupedResults.map(r => r.group);
         const drills = await this.prisma.drill.findMany({
           where: { id: { in: drillIds } },
@@ -159,11 +50,11 @@ export class ChatExecutor {
       return;
     }
 
-    // First batch: Quick yield without WKTs for immediate UI feedback (names/counts)
-    const initialBatch = rawResults.map(r => ({
-      id: r.id,
-      name: queryPlan.target === 'Mine' ? r.name : (queryPlan.target === 'Cluster' ? r.stoneType : `Mission: ${r.stoneType}`),
-      type: queryPlan.target as any,
+    // First batch: Quick yield without WKTs for immediate UI feedback
+    const initialBatch: EntitySearchResult[] = (rawResults as Record<string, unknown>[]).map((r) => ({
+      id: String(r['id']),
+      name: queryPlan.target === 'Mine' ? String(r['name']) : (queryPlan.target === 'Cluster' ? String(r['stoneType']) : `Mission: ${String(r['stoneType'])}`),
+      type: queryPlan.target as EntitySearchResult['type'],
       content: '',
       color: queryPlan.target === 'Mine' ? '#3b82f6' : (queryPlan.target === 'Cluster' ? '#f59e0b' : '#8b5cf6'),
       distance: 0
@@ -172,25 +63,44 @@ export class ChatExecutor {
 
     // Second batch: Hydrate with WKTs in chunks for the map
     const batchSize = 500;
-    for (let i = 0; i < rawResults.length; i += batchSize) {
-      const chunk = rawResults.slice(i, i + batchSize);
-      const ids = chunk.map(r => r.id);
-      const table = queryPlan.target === 'Mine' ? 'Mine' : (queryPlan.target === 'Cluster' ? 'Cluster' : 'Mine'); // Missions use Mine geom
+    const typedRawResults = rawResults as Record<string, unknown>[];
+    for (let i = 0; i < typedRawResults.length; i += batchSize) {
+      const chunk = typedRawResults.slice(i, i + batchSize);
+      const ids = chunk.map((r) => String(r['id']));
       
-      const idSource = queryPlan.target === 'DrillMission' ? chunk.map(m => m.mine.id) : ids;
+      // Target table for geometry
+      const table = queryPlan.target === 'Mine' ? 'Mine' : (queryPlan.target === 'Cluster' ? 'Cluster' : 'Mine');
+      
+      const idSource = queryPlan.target === 'DrillMission' 
+        ? chunk.map((m) => String((m['mine'] as Record<string, unknown>)?.['id'])) 
+        : ids;
+        
       const wkts = await this.prisma.$queryRawUnsafe<{id: string, wkt: string}[]>(
         `SELECT id::text, ST_AsText(geom) as wkt FROM "${table}" WHERE id::text IN (${Array.from(new Set(idSource)).map(id => `'${id}'`).join(',')})`
       );
 
-      const hydratedChunk = chunk.map(r => ({
-        id: r.id,
-        name: queryPlan.target === 'Mine' ? r.name : (queryPlan.target === 'Cluster' ? r.stoneType : `Mission: ${r.stoneType}`),
-        type: queryPlan.target as any,
-        content: queryPlan.target === 'Mine' ? `Mine: ${r.name}` : (queryPlan.target === 'Cluster' ? `Type: ${r.stoneType}, Quantity: ${r.quantity}kg` : `Planned: ${r.date.toLocaleDateString()}`),
-        color: queryPlan.target === 'Mine' ? '#3b82f6' : (queryPlan.target === 'Cluster' ? '#f59e0b' : '#8b5cf6'),
-        wkt: wkts.find(w => w.id === String(queryPlan.target === 'DrillMission' ? r.mine.id : r.id))?.wkt,
-        distance: 0
-      }));
+      const hydratedChunk: EntitySearchResult[] = chunk.map((r) => {
+        const id = String(r['id']);
+        const name = queryPlan.target === 'Mine' ? String(r['name']) : (queryPlan.target === 'Cluster' ? String(r['stoneType']) : `Mission: ${String(r['stoneType'])}`);
+        const type = queryPlan.target as EntitySearchResult['type'];
+        const content = queryPlan.target === 'Mine' 
+          ? `Mine: ${String(r['name'])}` 
+          : (queryPlan.target === 'Cluster' 
+              ? `Type: ${String(r['stoneType'])}, Quantity: ${Number(r['quantity'])}kg` 
+              : `Planned: ${r['date'] instanceof Date ? r['date'].toLocaleDateString() : String(r['date'])}`);
+        
+        const wktSourceId = queryPlan.target === 'DrillMission' ? String((r['mine'] as Record<string, unknown>)?.['id']) : id;
+
+        return {
+          id,
+          name,
+          type,
+          content,
+          color: queryPlan.target === 'Mine' ? '#3b82f6' : (queryPlan.target === 'Cluster' ? '#f59e0b' : '#8b5cf6'),
+          wkt: wkts.find(w => w.id === wktSourceId)?.wkt,
+          distance: 0
+        };
+      });
       
       yield hydratedChunk;
     }
@@ -199,87 +109,6 @@ export class ChatExecutor {
     await this.prisma.savedQuery.create({
       data: { name: question, query: queryPlan as unknown as Prisma.InputJsonValue, sql: `Generated for: ${queryPlan.target}` }
     });
-  }
-
-  private parseValue(val: any): any {
-    if (typeof val === 'string' && val.length >= 10) {
-      // Basic check for YYYY-MM-DD or ISO strings
-      if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
-        const date = new Date(val);
-        if (!isNaN(date.getTime())) return date;
-      }
-    }
-    return val;
-  }
-
-  private mapConditionsToPrisma(conditions: any): any {
-    const prismaWhere: any = {};
-    if (!conditions) return prismaWhere;
-
-    for (const [key, value] of Object.entries(conditions)) {
-      if (key === 'minCount') continue; 
-
-      if (typeof value === 'object' && value !== null) {
-        if ('operator' in value && 'value' in value) {
-          const { operator, value: rawVal } = value;
-          const val = this.parseValue(rawVal);
-          
-          switch (operator) {
-            case 'year': {
-              const y = parseInt(val.toString());
-              prismaWhere[key] = { gte: new Date(y, 0, 1), lt: new Date(y + 1, 0, 1) };
-              break;
-            }
-            case 'month': {
-              const s = val.toString();
-              let yr = new Date().getFullYear();
-              let mo = 0;
-              if (s.includes('-')) {
-                const p = s.split('-');
-                yr = parseInt(p[0]);
-                mo = parseInt(p[1]) - 1;
-              } else {
-                mo = parseInt(s) - 1;
-              }
-              prismaWhere[key] = { gte: new Date(yr, mo, 1), lt: new Date(yr, mo + 1, 1) };
-              break;
-            }
-            case 'day': {
-              const d = new Date(val.toString());
-              const nd = new Date(d);
-              nd.setDate(d.getDate() + 1);
-              prismaWhere[key] = { gte: d, lt: nd };
-              break;
-            }
-            case 'contains': prismaWhere[key] = { contains: val, mode: 'insensitive' }; break;
-            case 'notContains': 
-              prismaWhere.NOT = prismaWhere.NOT || [];
-              prismaWhere.NOT.push({ [key]: { contains: val, mode: 'insensitive' } });
-              break;
-            case 'gt': prismaWhere[key] = { gt: val }; break;
-            case 'lt': prismaWhere[key] = { lt: val }; break;
-            case 'after': prismaWhere[key] = { gt: val }; break;
-            case 'before': prismaWhere[key] = { lt: val }; break;
-            case 'equals': prismaWhere[key] = { equals: val }; break;
-            default: prismaWhere[key] = val;
-          }
-        } else {
-          // Recursive call for nested relations (some, every, none, is)
-          const nestedOps = ['some', 'every', 'none', 'is'];
-          const foundOp = nestedOps.find(op => op in value);
-          
-          if (foundOp) {
-            prismaWhere[key] = { [foundOp]: this.mapConditionsToPrisma((value as any)[foundOp]) };
-          } else {
-            // It might be a flat object with multiple operators or a direct value
-            prismaWhere[key] = value;
-          }
-        }
-      } else {
-        prismaWhere[key] = value;
-      }
-    }
-    return prismaWhere;
   }
 
   async getInitialData(): Promise<EntitySearchResult[]> {
@@ -313,5 +142,15 @@ export class ChatExecutor {
 
   async getHistory() {
     return this.prisma.savedQuery.findMany({ orderBy: { createdAt: 'desc' }, take: 20 });
+  }
+
+  async checkDbHealth(): Promise<boolean> {
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+      return true;
+    } catch (e) {
+      this.logger.error('Database health check failed', e);
+      return false;
+    }
   }
 }

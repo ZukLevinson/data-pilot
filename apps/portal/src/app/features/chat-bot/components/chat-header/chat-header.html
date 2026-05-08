@@ -1,0 +1,60 @@
+<div class="chat-header">
+  <div class="brand-section">
+    <div class="logo-orb">
+      <i class="pi pi-compass"></i>
+    </div>
+    <div class="brand-info">
+      <h1 class="title">Data Pilot</h1>
+      <div class="meta-row">
+        <span class="status-indicator" 
+              [class.active]="chatService.healthStatus().database === 'online'" 
+              [class.error-state]="chatService.healthStatus().database === 'offline'"
+              pTooltip="Database Connection Status">
+          <span class="dot"></span>
+          DB
+        </span>
+        <span class="status-indicator" 
+              [class.active]="chatService.healthStatus().llm === 'online'" 
+              [class.error-state]="chatService.healthStatus().llm === 'offline'"
+              pTooltip="LLM Connection Status">
+          <span class="dot"></span>
+          LLM
+        </span>
+        <span class="divider">|</span>
+        <span class="model-name">{{ chatService.currentModel() || 'GIS-Brain' }}</span>
+        @if (chatService.isWaiting()) {
+          <span class="divider">|</span>
+          <span class="processing-tag">מעבד...</span>
+        }
+      </div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <p-button icon="pi pi-history" [rounded]="true" [text]="true" (onClick)="chatService.showHistory.set(true); chatService.loadHistory()" pTooltip="Query Library"></p-button>
+    <p-button icon="pi pi-refresh" [rounded]="true" [text]="true" (onClick)="chatService.clear()" pTooltip="נקה שיחה"></p-button>
+  </div>
+</div>
+
+<p-drawer [(visible)]="chatService.showHistory" position="left" [baseZIndex]="10000" styleClass="history-sidebar" header="ספריית שאילתות" appendTo="body">
+  <p-scrollPanel [style]="{ width: '100%', height: 'calc(100vh - 100px)' }">
+    <div class="history-list">
+      @for (item of chatService.history(); track item.id) {
+        <div class="history-item" 
+             tabindex="0"
+             (click)="selectHistory(item)"
+             (keydown.enter)="selectHistory(item)">
+          <div class="history-header">
+            <i class="pi pi-search"></i>
+            <span class="history-name">{{ item.name }}</span>
+          </div>
+          <div class="history-footer">
+            <span class="history-date">{{ item.createdAt | date:'short' }}</span>
+          </div>
+        </div>
+      }
+      @if (chatService.history().length === 0) {
+        <div class="empty-history">אין שאילתות שמורות</div>
+      }
+    </div>
+  </p-scrollPanel>
+</p-drawer>

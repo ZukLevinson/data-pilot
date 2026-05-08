@@ -1,12 +1,11 @@
 import { inject, Injectable, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { AppConfig, ChatMessage, ChatRequest, ChatStreamChunk, EntitySearchResult, QueryPlan, SavedQuery } from '@org/models';
-
+import { ChatMessage, ChatRequest, EntitySearchResult, QueryPlan, SavedQuery } from '@org/models';
 import { helloMessage } from '@org/portal/shared-ui';
+import { ChatApiService } from './chat-api.service';
 
 @Injectable({ providedIn: 'root' })
 export class ChatService {
-  private http = inject(HttpClient);
+  private api = inject(ChatApiService);
 
   // --- State Management (Signals) ---
   messages = signal<ChatMessage[]>([{
@@ -22,13 +21,17 @@ export class ChatService {
   history = signal<SavedQuery[]>([]);
   isWaiting = signal<boolean>(false);
   showHistory = signal<boolean>(false);
+  healthStatus = signal<{ database: 'online' | 'offline'; llm: 'online' | 'offline' }>({
+    database: 'online',
+    llm: 'online'
+  });
 
   getConfig() {
-    return this.http.get<AppConfig>('/api/chat/config');
+    return this.api.getConfig();
   }
 
   loadHistory() {
-    this.http.get<SavedQuery[]>('/api/chat/history').subscribe(h => this.history.set(h));
+    this.api.getHistory().subscribe(h => this.history.set(h));
   }
 
   async sendMessage(text: string) {
@@ -55,7 +58,7 @@ export class ChatService {
     }]);
 
     try {
-      const stream = this.streamChat({ userId: 'user-1', question: text });
+      const stream = this.api.streamChat({ userId: 'user-1', question: text });
       let fullContent = '';
 
       for await (const chunk of stream) {
@@ -72,7 +75,7 @@ export class ChatService {
         if (chunk.sources) {
           this.updateBotMessage(botMessageId, { sources: chunk.sources });
           if (chunk.mode === 'append') {
-            this.currentSources.update(existing => [...existing, ...chunk.sources!]);
+            this.currentSources.update(existing => [...existing, ...(chunk.sources || [])]);
           } else {
             this.currentSources.set(chunk.sources);
           }
@@ -108,49 +111,6 @@ export class ChatService {
       answer = '';
     }
     return { thought, answer };
-  }
-
-  async *streamChat(request: ChatRequest): AsyncIterable<ChatStreamChunk> {
-    const response = await fetch('/api/chat/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request)
-    });
-
-    if (!response.ok) {
-      throw new Error('Server unavailable');
-    }
-
-    if (!response.body) {
-      throw new Error('No response body');
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      
-      // The last element might be a partial line, keep it in the buffer
-      buffer = lines.pop() || '';
-      
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data: ')) continue;
-        
-        try {
-          const data = JSON.parse(trimmed.replace('data: ', '')) as ChatStreamChunk;
-          yield data;
-        } catch (e) {
-          console.error('Failed to parse stream chunk. Buffer size:', trimmed.length, e);
-        }
-      }
-    }
   }
 
   clear() {

@@ -1,19 +1,21 @@
 export type MessageSender = 'user' | 'bot' | 'system';
 
-export interface QueryCondition {
-  operator: 'contains' | 'notContains' | 'gt' | 'lt' | 'after' | 'before' | 'equals' | 'year' | 'month' | 'day';
-  value: string | number | boolean;
+export type LogicalOperator = 'AND' | 'OR' | 'NOT';
+
+export interface FieldFilter {
+  operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'startsWith' | 'endsWith' | 'in' | 'notIn' | 'after' | 'before' | 'year' | 'month' | 'day' | 'equals';
+  value: unknown;
 }
 
-export type ConditionValue = string | number | boolean | QueryCondition | RelationFilter;
-
-export interface RelationFilter {
-  some?: Record<string, ConditionValue>;
-  every?: Record<string, ConditionValue>;
-  none?: Record<string, ConditionValue>;
-  is?: Record<string, ConditionValue>;
-  minCount?: number;
+export interface RelatedQueryFilter {
+  query: QueryPlan;
+  count?: {
+    operator: 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
+    value: number;
+  };
 }
+
+export type WhereClauseValue = FieldFilter | RelatedQueryFilter | unknown;
 
 export interface Aggregation {
   field: string;
@@ -26,19 +28,33 @@ export interface OrderBy {
   type?: 'sum' | 'avg' | 'min' | 'max' | 'count'; // If ordering by aggregation
 }
 
+export interface WhereClause {
+  AND?: WhereClause[];
+  OR?: WhereClause[];
+  NOT?: WhereClause;
+  [field: string]: WhereClauseValue | WhereClause[] | WhereClause | undefined;
+}
+
 export interface QueryPlan {
-  target: 'Mine' | 'Cluster' | 'Drill' | 'DrillMission';
+  target: string;
+  conditions: {
+    AND?: WhereClause[];
+    OR?: WhereClause[];
+    NOT?: WhereClause;
+  };
   limit?: number;
-  conditions?: Record<string, ConditionValue>;
   aggregations?: Aggregation[];
-  groupBy?: string;
-  orderBy?: OrderBy;
+  groupBy?: string[];
+  orderBy?: OrderBy[];
+  
+  // Metadata and results
   generatedSql?: string;
   totalCount?: number;
   aggregationResults?: Record<string, number>;
   groupedResults?: { group: string; results: Record<string, number> }[];
   isStatsOnly?: boolean;
 }
+
 
 export interface SavedQuery {
   id: string;
@@ -78,9 +94,15 @@ export interface ChatStreamChunk {
   queryPlan?: QueryPlan;
 }
 
+export interface HealthStatus {
+  database: 'online' | 'offline';
+  llm: 'online' | 'offline';
+}
+
 export interface AppConfig {
   modelName: string;
   embeddingModel: string;
+  health: HealthStatus;
 }
 
 export interface EntitySearchResult {

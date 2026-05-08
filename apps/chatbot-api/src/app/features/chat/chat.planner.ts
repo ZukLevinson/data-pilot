@@ -27,11 +27,12 @@ Available Query Plan Structure:
   "conditions": {
     "fieldName": { "operator": "contains" | "notContains" | "gt" | "lt" | "after" | "before" | "equals" | "year" | "month" | "day", "value": any },
     "relationName": { 
-      "some" | "every" | "none" | "is": { 
-        "subFieldName": { "operator": "...", "value": "..." },
-        "subRelationName": { ... }
-      }
-    }
+      "some" | "every" | "none" | "is": { ... },
+      "query": { "target": "RelatedEntity", "conditions": { ... } },
+      "count": { "operator": "eq" | "gt" | "gte" | "lt" | "lte", "value": number } (optional)
+    },
+    "OR": [ { ... }, { ... } ],
+    "AND": [ { ... }, { ... } ]
   },
   "aggregations": [
     { "field": string, "type": "sum" | "avg" | "min" | "max" | "count" }
@@ -44,32 +45,38 @@ Current Date & Time: ${new Date().toISOString()}
 
 Instructions:
 1. Use "conditions" for ALL filters.
-2. For filters on related entities, use the relation name with a relational operator ("some", "every", "none", "is").
-3. **Time Strictness**: 
-   - If the user asks for a specific date or time, use "operator": "equals".
+2. **Explicit Logic**: ALWAYS wrap the root conditions in an "AND" or "OR" array, even if there is only one condition. Never use siblings for multiple filters at the same level.
+   - WRONG: { "field1": {...}, "field2": {...} }
+   - RIGHT: { "AND": [ { "field1": {...} }, { "field2": {...} } ] }
+3. **Recursion**: Support complex logical nesting, e.g., (X AND (Y OR Z)).
+   - If the user asks for a specific date or time, use "operator": "equals" and provide an ISO string.
    - If the user asks for a specific YEAR, MONTH, or DAY (e.g. "missions in 2024"), use the corresponding operator.
+   - **Time Formats**: 
+      - "year": provide "YYYY" (e.g. "2024")
+      - "month": provide "YYYY-MM" (e.g. "2024-05")
+      - "day": provide "YYYY-MM-DD" (e.g. "2024-05-20")
    - Use "after" or "before" ONLY if explicitly requested.
-4. **Relation Counts**: If a minimum number of related items is specified, add "minCount": X inside that relation object.
+4. **Relation Filtering**: 
+   - Use "some", "every", "none", or "is" for standard existence/matching.
+   - Use "query" + "count" ONLY when a specific number of related items is required (e.g. "at least 3").
+   - "Mines with at least 3 Graphite clusters" -> { "target": "Mine", "conditions": { "AND": [ { "clusters": { "query": { "target": "Cluster", "conditions": { "AND": [ { "stoneType": { "operator": "equals", "value": "Graphite" } } ] } }, "count": { "operator": "gte", "value": 3 } } } ] } }
+   - "Missions in North Mine" -> { "target": "DrillMission", "conditions": { "AND": [ { "mine": { "is": { "name": { "operator": "equals", "value": "North Mine" } } } } ] } }
 5. **Field Inference & Targets**: If a user asks for statistics (sum, avg, count) on a field, the 'target' MUST be the entity that actually contains that field.
    - "Top 10 mines by quantity" -> Target: **Cluster** (quantity is on Cluster), GroupBy: **mineId**, Aggregations: sum(quantity).
    - "Mines of type X" (Mine has no 'type', but Cluster does) -> { "target": "Mine", "conditions": { "clusters": { "some": { "stoneType": { "operator": "equals", "value": "X" } } } } }
 6. **Grouping**: If the user asks for stats "per X" or "for each Y", use "groupBy": "Y" (e.g., "mineId", "stoneType").
-   - IMPORTANT: If the target is Cluster but you want results "per mine", use 'groupBy: "mineId"'.
 7. **Ranking & Sorting**: Use "orderBy" for "top X", "biggest", "smallest", "most", "highest", etc.
-    - "Top 10 mines with biggest quantity" -> { "target": "Cluster", "aggregations": [{ "field": "quantity", "type": "sum" }], "groupBy": "mineId", "orderBy": { "field": "quantity", "direction": "desc", "type": "sum" }, "limit": 10 }
-8. **Relational Filtering**: If the user filters by a name or property of a related entity, use the relation name as a key and an "is" filter.
-   - "Missions in North Mine" -> { "target": "DrillMission", "conditions": { "mine": { "is": { "name": { "operator": "equals", "value": "North Mine" } } } } }
-9. **Chaining vs. Siblings**:
+8. **Chaining vs. Siblings**:
    - If relations are described as a chain (e.g., "Mines with clusters that have missions"), NEST them: Mine -> clusters -> missions.
-   - If relations are described as parallel (e.g., "Mines with clusters and missions"), keep them as siblings in the parent "conditions".
+   - If relations are described as parallel (e.g., "Mines with clusters and missions"), ALWAYS use an "AND" array.
 9. **Attribute Attribution**: Carefully determine which entity each condition applies to.
 10. **Stats Only**: If the user asks ONLY for statistics (e.g., "what is the average...", "how many..."), set "isStatsOnly": true.
 11. Translate Hebrew terms to their English technical equivalents based on the schema.
 12. Output ONLY the valid JSON object.
-13. Example (Statistics): "Average quantity per mine" -> { "target": "Cluster", "aggregations": [{ "field": "quantity", "type": "avg" }], "groupBy": "mineId", "isStatsOnly": true }
-14. Example (Time Granularity): "Mines in May 2024" -> { "target": "Mine", "conditions": { "createdAt": { "operator": "month", "value": "2024-05" } } }
-15. Example (Chaining): "Mines with clusters that have missions" -> { "target": "Mine", "conditions": { "clusters": { "some": { "missions": { "some": {} } } } } }
-16. Example (Siblings): "Mines with Neodymium clusters and Drill-1 missions" -> { "target": "Mine", "conditions": { "clusters": { "some": { "stoneType": { "operator": "equals", "value": "Neodymium" } } }, "missions": { "some": { "drill": { "is": { "name": { "operator": "equals", "value": "Drill-1" } } } } } } }`;
+13. Example (Complex Logic): "Mines in North with Neodymium or Lithium" -> { "target": "Mine", "conditions": { "AND": [ { "name": { "operator": "contains", "value": "North" } }, { "OR": [ { "clusters": { "query": { "target": "Cluster", "conditions": { "AND": [ { "stoneType": { "operator": "equals", "value": "Neodymium" } } ] } } } }, { "clusters": { "query": { "target": "Cluster", "conditions": { "AND": [ { "stoneType": { "operator": "equals", "value": "Lithium" } } ] } } } } ] } ] } }
+14. Example (Statistics): "Average quantity per mine" -> { "target": "Cluster", "aggregations": [{ "field": "quantity", "type": "avg" }], "groupBy": "mineId", "isStatsOnly": true }
+15. Example (Time Granularity): "Mines in May 2024" -> { "target": "Mine", "conditions": { "AND": [ { "createdAt": { "operator": "month", "value": "2024-05" } } ] } }
+16. Example (Chaining): "Mines with clusters that have missions" -> { "target": "Mine", "conditions": { "AND": [ { "clusters": { "query": { "target": "Cluster", "conditions": { "AND": [ { "missions": { "query": { "target": "DrillMission", "conditions": {} } } } ] } } } } ] } }`;
 
     const planRes = await llm.invoke(planPrompt);
     const match = planRes.content.toString().match(/\{[\s\S]*\}/);
@@ -80,7 +87,7 @@ Instructions:
         plan.target = target;
         this.logger.log(`Generated Query Plan: ${JSON.stringify(plan)}`);
         return plan;
-      } catch (e) {
+      } catch {
         this.logger.error(`Failed to parse plan JSON: ${match[0]}`);
       }
     }

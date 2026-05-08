@@ -1,0 +1,364 @@
+.query-plan-gui {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 1rem;
+  margin: 0.75rem 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.query-plan-gui.sub-plan {
+  border: none;
+  padding: 0;
+  margin: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.plan-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 0.5rem;
+}
+
+.plan-summary-header i {
+  color: #3b82f6;
+}
+
+.plan-details-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.plan-item.full {
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  min-width: 100px;
+}
+
+.value {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 0.875rem;
+}
+
+.value.count {
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+/* Logic Hierarchy GUI */
+.logic-hierarchy {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.hierarchy-node {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+
+.hierarchy-node:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.hierarchy-node.main {
+  border-inline-start: 4px solid #2563eb;
+}
+
+.hierarchy-node.relation {
+  border-inline-start: 4px solid #f59e0b;
+}
+
+.node-header {
+  padding: 6px 10px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.node-header i {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.node-body {
+  padding: 8px 10px;
+}
+
+.logic-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  margin-bottom: 4px;
+}
+
+.logic-field {
+  font-weight: 600;
+  color: #1e293b;
+  min-width: 60px;
+}
+
+.logic-op {
+  color: #64748b;
+  font-size: 0.75rem;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.logic-val {
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.hierarchy-connector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  color: #94a3b8;
+}
+
+.connector-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.logic-group {
+  margin: 12px 0;
+  border-inline-start: 2px solid #cbd5e1;
+  padding-inline-start: 16px;
+  position: relative;
+}
+
+.logic-group.root-level {
+  border-inline-start-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.02);
+  border-radius: 0 8px 8px 0;
+  padding: 12px 16px;
+  border: 1px solid rgba(59, 130, 246, 0.1);
+  border-inline-start-width: 4px;
+}
+
+.logic-op-header {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #1e40af;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  background: #dbeafe;
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.05em;
+}
+
+.logic-op-header.or {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.logic-group.nested {
+  margin: 4px 0;
+  border-inline-start-color: #e2e8f0;
+  background: transparent;
+  padding-inline-start: 12px;
+}
+
+.logic-op-header.small {
+  font-size: 0.65rem;
+  padding: 1px 4px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.logic-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -6px 0;
+  position: relative;
+  z-index: 2;
+}
+
+.logic-connector span {
+  background: #3b82f6;
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+}
+
+.logic-connector.or span {
+  background: #f59e0b;
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.2);
+}
+
+.logic-children {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.logic-recursive-wrapper {
+  position: relative;
+}
+
+.leaf-condition {
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+.aggregation-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.agg-result-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  padding: 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.agg-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.agg-label {
+  font-size: 0.65rem;
+  color: #64748b;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.agg-value {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+:host ::ng-deep .target-chip {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  height: 24px !important;
+}
+
+/* Grouped Results Styling */
+.grouped-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  width: 100%;
+}
+
+.group-result-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.group-header {
+  background: #f1f5f9;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #1e293b;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.group-header i {
+  color: #3b82f6;
+}
+
+.group-metrics {
+  padding: 0.625rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+.m-label {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.m-val {
+  color: #0f172a;
+  font-weight: 700;
+  background: #ffffff;
+  padding: 1px 4px;
+  border-radius: 4px;
+  border: 1px solid #f1f5f9;
+}
