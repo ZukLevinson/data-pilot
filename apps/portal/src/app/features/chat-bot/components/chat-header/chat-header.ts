@@ -11,9 +11,16 @@ import { SavedQuery } from '@org/models';
 @Component({
   selector: 'app-chat-header',
   standalone: true,
-  imports: [CommonModule, ButtonModule, TooltipModule, DrawerModule, ScrollPanelModule, DatePipe],
+  imports: [
+    CommonModule,
+    ButtonModule,
+    TooltipModule,
+    DrawerModule,
+    ScrollPanelModule,
+    DatePipe,
+  ],
   templateUrl: './chat-header.html',
-  styleUrl: './chat-header.css'
+  styleUrl: './chat-header.css',
 })
 export class ChatHeaderComponent {
   public chatService = inject(ChatService);

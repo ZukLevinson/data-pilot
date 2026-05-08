@@ -11,17 +11,15 @@ describe('ChatHeaderComponent', () => {
   beforeEach(async () => {
     mockChatService = {
       showHistory: signal(false),
+      isWaiting: signal(false),
       currentModel: signal('test-model'),
-      healthStatus: signal({ database: 'online', llm: 'online' })
+      healthStatus: signal({ database: 'online', llm: 'online' }),
     };
 
     await TestBed.configureTestingModule({
       imports: [ChatHeaderComponent],
-      providers: [
-        { provide: ChatService, useValue: mockChatService }
-      ]
-    })
-    .compileComponents();
+      providers: [{ provide: ChatService, useValue: mockChatService }],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(ChatHeaderComponent);
     component = fixture.componentInstance;
