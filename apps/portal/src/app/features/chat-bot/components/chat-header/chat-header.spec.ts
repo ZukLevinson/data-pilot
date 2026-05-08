@@ -10,10 +10,22 @@ describe('ChatHeaderComponent', () => {
 
   beforeEach(async () => {
     mockChatService = {
-      showHistory: signal(false),
-      isWaiting: signal(false),
-      currentModel: signal('test-model'),
-      healthStatus: signal({ database: 'online', llm: 'online' }),
+      messages: signal<ChatMessage[]>([]),
+      currentSources: signal<EntitySearchResult[]>([]),
+      currentQueryPlan: signal<QueryPlan | null>(null),
+      currentModel: signal<string | null>(null),
+      statusText: signal<string | null>(null),
+      history: signal<SavedQuery[]>([]),
+      isWaiting: signal<boolean>(false),
+      showHistory: signal<boolean>(false),
+      editingPlan: signal<QueryPlan | null>(null),
+      healthStatus: signal<{
+        database: 'online' | 'offline';
+        llm: 'online' | 'offline';
+      }>({
+        database: 'online',
+        llm: 'online',
+      }),
     };
 
     await TestBed.configureTestingModule({
