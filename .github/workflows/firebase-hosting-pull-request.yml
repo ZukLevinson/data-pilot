@@ -33,6 +33,8 @@ jobs:
           cache: 'pnpm'
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate --schema=apps/chatbot-api/prisma/schema.prisma
+      - run: pnpm exec playwright install --only-shell
       - run: pnpm nx run-many -t build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
